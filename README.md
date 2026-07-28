@@ -31,7 +31,7 @@ pip install spicetify-websocket
 To use this library, ensure you have:
 1. **Spotify Desktop Client** installed.
 2. **[Spicetify CLI](https://spicetify.app/)** installed and configured.
-3. The [spicetify-connect-api]([https://github.com/tobfd/spicetify-connect-api) extension enabled in Spicetify.
+3. The **[spicetify-connect-api](https://github.com/tobfd/spicetify-connect-api)** extension enabled in Spicetify.
 
 ---
 
