@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spicetify-websocket"
+authors = [
+  { name="Tobias Schmitt", email="support@tobfd.de" },
+]
+description = "An asynchronous Python wrapper and WebSocket server for controlling the Spotify desktop client via Spicetify and the spicetify-connect-api extension."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+    "Topic :: Utilities",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+keywords = ["spicetify", "websocket", "local", "spotify"]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+  "pydantic>=2.13.4,<3.0",
+  "websockets>=16.1.1,<17.0",
+]
+dynamic = ["version"]
+
+[project.urls]
+Github = "https://github.com/tobfd/spicetify-websocket"
+Documentation = "https://spicetify-websocket.readthedocs.io"
+Changelog = "https://github.com/tobfd/spicetify-websocket/releases"
+
+[tool.setuptools.dynamic]
+version = {attr = "spicetify.__version__"}
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+fix = true
+
+[tool.ruff.lint]
+extend-select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort (Import sorting)
+    "UP",     # pyupgrade (Modern Python)
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "RUF",    # Ruff-specific rules
+]
+
+[lint.per-file-ignores]
+"examples/*" = ["T201"]
+"tests/*" = ["SLF001", "S101"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=spicetify --cov-report=term-missing --cov-report=html"
+asyncio_mode = "auto"

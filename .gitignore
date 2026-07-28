@@ -1,0 +1,21 @@
+__pycache__/
+.idea/
+venv
+.venv
+.env
+*.db
+*.log
+
+# Packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Sphinx
+docs/_build
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
