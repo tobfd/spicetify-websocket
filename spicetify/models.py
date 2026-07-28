@@ -324,23 +324,6 @@ class TrackInfo(BaseModel):
 # --- Playback State Models ---
 
 
-class PlayerStateEvent(BaseModel):
-    """Represents the current Spotify player state.
-
-    Attributes:
-        event: Event name emitted by the client.
-        is_playing: Whether playback is currently active.
-        volume: Current playback volume.
-        current_track: Information about the current track, if available.
-            See :class:`TrackInfo`.
-    """
-
-    event: Literal["player_state_changed"] = "player_state_changed"
-    is_playing: bool
-    volume: float
-    current_track: TrackInfo | None = None
-
-
 class RepeatMode(IntEnum):
     """Enumeration of supported repeat modes."""
 

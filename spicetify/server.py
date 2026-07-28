@@ -54,21 +54,28 @@ class SpotifyServer:
 
     Examples:
         >>> import asyncio
-        >>> from spicetify import SpotifyServer
+        >>> from spicetify import RepeatMode, SpotifyServer, TrackInfo
         >>>
         >>> async def main():
         ...     async with SpotifyServer() as server:
+        ...         @server.on_song_changed
+        ...         def callback(track: TrackInfo):
+        ...             print("New song is playing:", track.title)
+        ...             print("Artist/s:", ", ".join(artist.name for artist in track.artists))
+        ...
         ...         await server.wait_for_connection()
         ...
-        ...         await server.set_repeat(RepeatMode.CONTEXT)
+        ...         is_playing: bool = await server.get_is_playing()
+        ...         print("Is Spotify playing:", is_playing)
         ...
-        ...         @server.on_play_pause_changed
-        ...         def callback(player: PlayerState):
-        ...             print(player)
-        ...             if player.track:
-        ...                 print(", ".join([artist.name for artist in player.track.artists]))
+        ...         await server.play_url(url="https://open.spotify.com/intl-de/track/55pBIZO1cqoldeqpp5WR7H?si=57cde33a1bd34ac9")
+        ...         await server.set_volume(percent=75)
+        ...         await server.set_repeat(mode=RepeatMode.TRACK)
         ...
         ...         await asyncio.Event().wait()
+        >>>
+        >>> if __name__ == "__main__":
+        ...     asyncio.run(main())
     """
 
     def __init__(self, host: str = "127.0.0.1", port: int = 9090) -> None:
@@ -313,7 +320,7 @@ class SpotifyServer:
         elif key == "songchanged":
             return TrackInfo.from_payload(payload)
         elif key == "volumechanged":
-            return payload.get("level", 0) * 100
+            return round(payload.get("level", 0) * 100, 2)
         elif key == "repeatchanged":
             return RepeatMode(payload.get("mode"))
         elif key == "shufflechanged":
