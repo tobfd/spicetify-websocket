@@ -9,9 +9,9 @@
 import os
 import sys
 
-from spicetify import __version__
-
 sys.path.insert(0, os.path.abspath("../"))
+
+from spicetify import __version__
 
 project = "spicetify-websocket"
 copyright = "2026, Tobias Schmitt"
