@@ -1,9 +1,9 @@
 [![spicetify-websocket](https://github.com/tobfd/spicetify-websocket/blob/master/docs/_static/logo.png?raw=true)](https://github.com/tobfd/spicetify-websocket)
 
-[![](https://img.shields.io/pypi/v/spicetify-websocket.svg?style=for-the-badge&logo=pypi&color=green&logoColor=white)](https://pypi.org/project/spicetify-websocket/)
-[![](https://img.shields.io/pypi/l/spicetify-websocket?style=for-the-badge&color=5865F2)](https://github.com/tobfd/spicetify-websocket/blob/master/LICENSE)
+[![PyPI Version](https://img.shields.io/pypi/v/spicetify-websocket?style=for-the-badge&logo=pypi&logoColor=white&color=magenta)](https://pypi.org/project/spicetify-websocket/)
+[![GitHub License](https://img.shields.io/github/license/tobfd/spicetify-websocket?style=for-the-badge&logo=github&color=red)](https://github.com/tobfd/spicetify-websocket/blob/master/LICENSE)
 [![](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![](https://img.shields.io/readthedocs/spicetify-websocket?style=for-the-badge)](https://spicetify-websocket.readthedocs.io/)
+[![Read the Docs](https://img.shields.io/readthedocs/spicetify-websocket?style=for-the-badge&logo=readthedocs)](https://spicetify-websocket.readthedocs.io/)
 
 An asynchronous Python wrapper and WebSocket server for controlling the Spotify desktop client via [Spicetify](https://spicetify.app/) and the [spicetify-connect-api]([https://github.com/tobfd/spicetify-connect-api) extension.
 
