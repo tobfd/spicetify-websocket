@@ -1,6 +1,6 @@
 __title__ = "spicetify-websocket"
 __license__ = "MIT"
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .exceptions import NotConnectedError, RequestTimeoutError, SpicetifyError
 from .models import ArtistInfo, PlayerState, RepeatMode, TrackInfo
