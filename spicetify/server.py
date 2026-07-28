@@ -320,7 +320,7 @@ class SpotifyServer:
         elif key == "songchanged":
             return TrackInfo.from_payload(payload)
         elif key == "volumechanged":
-            return payload.get("level", 0) * 100
+            return round(payload.get("level", 0) * 100, 2)
         elif key == "repeatchanged":
             return RepeatMode(payload.get("mode"))
         elif key == "shufflechanged":
