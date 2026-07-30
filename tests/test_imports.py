@@ -16,7 +16,6 @@ def test_version_format():
     assert hasattr(spicetify, "__version__")
     assert isinstance(spicetify.__version__, str)
 
-    # Validates semantic versioning strings
     semver_pattern = r"^\d+\.\d+\.\d+.*$"
     assert re.match(semver_pattern, spicetify.__version__), (
         f"__version__ '{spicetify.__version__}' does not follow SemVer format"

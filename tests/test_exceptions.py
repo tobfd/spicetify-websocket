@@ -1,6 +1,6 @@
 """Tests for custom Spicetify exceptions."""
 
-from spicetify import NotConnectedError, RequestTimeoutError, SpicetifyError
+from spicetify import NotConnectedError, RequestTimeoutError, SpicetifyError, UnauthorizedError
 
 
 def test_exceptions_instantiation():
@@ -12,6 +12,9 @@ def test_exceptions_instantiation():
     assert err_timeout.command == "Play"
     assert err_timeout.timeout == 5.0
     assert "Command 'Play' did not respond within 5.0s." in str(err_timeout)
+
+    err_auth = UnauthorizedError()
+    assert "Invalid or missing API key token." in str(err_auth)
 
     err_base = SpicetifyError("Base exception message")
     assert str(err_base) == "Base exception message"

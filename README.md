@@ -9,8 +9,10 @@ An asynchronous Python wrapper and WebSocket server for controlling the Spotify 
 
 ## ✨ Features
 
-- ⚡ **Real-time Push Events:** Instant updates for song changes, volume, seeking, and playback state.
-- 🎮 **Full Playback Control:** Play, pause, skip, seek, volume, repeat, and shuffle.
+- ⚡ **Real-time Push Events:** Instant updates for song changes, volume, seeking, ping heartbeats, and playback state.
+- 🎮 **Full Playback Control:** Play, pause, skip, seek, volume, repeat, shuffle, and ping latency checks.
+- 🔑 **API Key Security:** Optional token authorization for securing command execution and event streaming.
+- 🔒 **Secure WebSockets (WSS):** Built-in SSL/TLS support via `ssl_context` or `certfile`/`keyfile`.
 - 🛠️ **Convenience Decorators:** Easy event listening with syntax like `@server.on_song_changed`.
 - 🏷️ **Fully Typed:** Pydantic V2 models (`TrackInfo`, `PlayerState`, `RepeatMode`).
 - 🔄 **Async & Non-blocking:** Built on `asyncio` and `websockets` for maximum performance.
@@ -84,4 +86,5 @@ if __name__ == "__main__":
 | `RepeatChanged` | `@server.on_repeat_changed` | `RepeatMode` | Fired when repeat mode changes (OFF, CONTEXT, TRACK). |
 | `ShuffleChanged` | `@server.on_shuffle_changed` | `bool` | Fired when shuffle mode is toggled. |
 | `SeekChanged` | `@server.on_seek_changed` | `int` (ms) | Fired when timeline position is manually changed. |
+| `Ping` | `@server.on_ping` | `datetime` (UTC) | Fired on periodic heartbeat pings from Spicetify. |
 ---
