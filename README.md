@@ -5,7 +5,7 @@
 [![](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Read the Docs](https://img.shields.io/readthedocs/spicetify-websocket?style=for-the-badge&logo=readthedocs)](https://spicetify-websocket.readthedocs.io/)
 
-An asynchronous Python wrapper and WebSocket server for controlling the Spotify desktop client via [Spicetify](https://spicetify.app/) and the [spicetify-connect-api]([https://github.com/tobfd/spicetify-connect-api) extension.
+An asynchronous Python wrapper and WebSocket server for controlling the Spotify desktop client via [Spicetify](https://spicetify.app/) and the [spicetify-connect-api](https://github.com/tobfd/spicetify-connect-api) extension.
 
 ## ✨ Features
 
