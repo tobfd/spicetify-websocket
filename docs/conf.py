@@ -38,7 +38,7 @@ intersphinx_mapping = {
     "pyd": ("https://docs.pydantic.dev/latest/", None),
     "ws": ("https://websockets.readthedocs.io/en/stable/", None),
 }
-
+suppress_warnings = ["myst.header"]
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
