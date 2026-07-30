@@ -5,6 +5,7 @@ venv
 .env
 *.db
 *.log
+*.pem
 
 # Packaging
 build/

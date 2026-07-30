@@ -33,34 +33,43 @@ def _generate_id() -> str:
 class BaseRequest(BaseModel):
     """Base model for requests sent to Spicetify.
 
-    The serialized form contains `requestName`, `requestId`, and a nested
-    `payload` object with the remaining fields.
+    The serialized form contains `requestName`, `requestId`, an optional `token`,
+    and a nested `payload` object with the remaining fields.
 
     Attributes:
         requestName: The request type name sent over the wire.
         requestId: Unique request identifier used to match responses.
+        token: Optional API key token for authorization.
     """
 
     requestName: str
     requestId: str = Field(default_factory=_generate_id)
+    token: str | None = None
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler) -> dict:
         """Serialize the request into the wire format expected by Spicetify.
 
         Returns:
-            dict: Serialized request with `requestName`, `requestId`, and
-            `payload`.
+            Serialized request with `requestName`, `requestId`, optional `token`,
+            and nested `payload`.
         """
         data = handler(self)
 
         req_name = data.pop("requestName")
         req_id = data.pop("requestId")
+        token = data.pop("token", None)
 
-        return {"requestName": req_name, "requestId": req_id, "payload": data}
+        serialized = {"requestName": req_name, "requestId": req_id, "payload": data}
+        if token is not None:
+            serialized["token"] = token
+
+        return serialized
 
 
 # --- Playback control requests ---
+
+
 class PlayRequest(BaseRequest):
     """Request to start playback."""
 
@@ -122,7 +131,15 @@ class PauseRequest(BaseRequest):
     requestName: Literal["Pause"] = "Pause"
 
 
+class PingRequest(BaseRequest):
+    """Request to ping the Spicetify client."""
+
+    requestName: Literal["Ping"] = "Ping"
+
+
 # --- Playback Setting Requests ---
+
+
 class SetShuffleRequest(BaseRequest):
     """Request to enable or disable shuffle mode.
 
@@ -281,14 +298,14 @@ class TrackInfo(BaseModel):
 
         Returns:
             A :class:`TrackInfo` instance populated from the payload.
-
         """
         track_data = payload.get("track", {})
         metadata = track_data.get("metadata", {})
 
         raw_artists = track_data.get("artists", [])
         artists = [
-            ArtistInfo(name=artist.get("name"), uri=artist.get("uri")) for artist in raw_artists
+            ArtistInfo(name=artist.get("name", ""), uri=artist.get("uri", ""))
+            for artist in raw_artists
         ]
 
         duration = track_data.get("duration", {})
@@ -302,10 +319,10 @@ class TrackInfo(BaseModel):
         raw_image_url = ""
         if images and len(images) > 0:
             has_image = True
-            raw_image_url = images[0].get("url")
+            raw_image_url = images[0].get("url", "")
         elif "image_url" in metadata:
             has_image = True
-            raw_image_url = metadata.get("image_url")
+            raw_image_url = metadata.get("image_url", "")
 
         image_url = _convert_spotify_image_url(raw_image_url) if has_image else None
 
@@ -410,7 +427,6 @@ class PlayerState(BaseModel):
         Returns:
             A :class:`PlayerState` instance populated with data from the
             payload.
-
         """
         track = None
         item = payload.get("item")

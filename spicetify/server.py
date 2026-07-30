@@ -2,13 +2,21 @@ import asyncio
 import inspect
 import json
 import logging
+import ssl
+import time
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import Any
 
 from typing_extensions import Self
 from websockets.asyncio.server import Server, ServerConnection, serve
 
-from .exceptions import NotConnectedError, RequestTimeoutError, SpicetifyError
+from .exceptions import (
+    NotConnectedError,
+    RequestTimeoutError,
+    SpicetifyError,
+    UnauthorizedError,
+)
 from .models import (
     BaseRequest,
     ForcePreviousSongRequest,
@@ -18,6 +26,7 @@ from .models import (
     GetVolumeRequest,
     NextSongRequest,
     PauseRequest,
+    PingRequest,
     PlayerState,
     PlayRequest,
     PlayUriRequest,
@@ -49,38 +58,30 @@ class SpotifyServer:
     Attributes:
         host: Hostname to bind the server to.
         port: Port to bind the server to.
+        api_key: Optional API key token required for message authorization.
+        ssl_context: Custom SSL context for secure WebSocket connections.
+        certfile: Path to SSL certificate file for WSS.
+        keyfile: Path to SSL private key file for WSS.
         websocket: Active WebSocket connection, if any.
         server: Running WebSocket server instance, if any.
-
-    Examples:
-        >>> import asyncio
-        >>> from spicetify import RepeatMode, SpotifyServer, TrackInfo
-        >>>
-        >>> async def main():
-        ...     async with SpotifyServer() as server:
-        ...         @server.on_song_changed
-        ...         def callback(track: TrackInfo):
-        ...             print("New song is playing:", track.title)
-        ...             print("Artist/s:", ", ".join(artist.name for artist in track.artists))
-        ...
-        ...         await server.wait_for_connection()
-        ...
-        ...         is_playing: bool = await server.get_is_playing()
-        ...         print("Is Spotify playing:", is_playing)
-        ...
-        ...         await server.play_url(url="https://open.spotify.com/intl-de/track/55pBIZO1cqoldeqpp5WR7H?si=57cde33a1bd34ac9")
-        ...         await server.set_volume(percent=75)
-        ...         await server.set_repeat(mode=RepeatMode.TRACK)
-        ...
-        ...         await asyncio.Event().wait()
-        >>>
-        >>> if __name__ == "__main__":
-        ...     asyncio.run(main())
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 9090) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 9090,
+        api_key: str | None = None,
+        ssl_context: ssl.SSLContext | None = None,
+        certfile: str | None = None,
+        keyfile: str | None = None,
+    ) -> None:
         self.host = host
         self.port = port
+        self.api_key = api_key
+        self.ssl_context = ssl_context
+        self.certfile = certfile
+        self.keyfile = keyfile
+
         self.websocket: ServerConnection | None = None
         self.server: Server | None = None
         self._pending_requests: dict[str, asyncio.Future] = {}
@@ -101,25 +102,14 @@ class SpotifyServer:
             event_name: Name of the Spicetify event to subscribe to.
 
         Returns:
-            A decorator that registers the given function as event
-            handler.
+            A decorator that registers the given function as event handler.
 
         Note:
             This method is a decorator factory and must be called with the
             event name, for example ``@server.on("SongChanged")``.
-
         """
 
         def decorator(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
-            """Attach `func` as a callback for the configured event.
-
-            Args:
-                func: The callback function to register.
-
-            Returns:
-                The original function, unchanged.
-
-            """
             key = event_name.lower()
             if key not in self._event_callbacks:
                 self._event_callbacks[key] = []
@@ -133,38 +123,28 @@ class SpotifyServer:
     def on_initial_state(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``InitialState`` event.
 
-        The callback receives a :class:`PlayerState` instance parsed from the
-        initial player data.
-
-        Note:
-            Use this decorator without parentheses, for example
-            ``@server.on_initial_state``.
+        The callback receives a :class:`PlayerState` object containing
+        the initial player data when Spicetify connects.
 
         Args:
-            func: Callback that accepts the initial player state.
+            func: Callback function that receives a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
-
         """
         return self.on("InitialState")(func)
 
     def on_song_changed(self, func: Callable[[TrackInfo], Any]) -> Callable[[TrackInfo], Any]:
         """Register a callback for the ``SongChanged`` event.
 
-        The callback receives a :class:`TrackInfo` instance for the current
-        song.
-
-        Note:
-            Use this decorator without parentheses, for example
-            ``@server.on_song_changed``.
+        The callback receives a :class:`TrackInfo` object representing
+        the currently playing track.
 
         Args:
-            func: Callback that accepts the current track information.
+            func: Callback function that receives a :class:`TrackInfo` object.
 
         Returns:
             The original callback, unchanged.
-
         """
         return self.on("SongChanged")(func)
 
@@ -173,111 +153,94 @@ class SpotifyServer:
     ) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``PlayPauseChanged`` event.
 
-        The callback receives a :class:`PlayerState` instance representing the
-        current playback state.
-
-        Note:
-            Use this decorator without parentheses, for example
-            ``@server.on_play_pause_changed``.
+        The callback receives a :class:`PlayerState` object representing
+        the updated playback state.
 
         Args:
-            func: Callback that accepts the current player state.
+            func: Callback function that receives a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
-
         """
         return self.on("PlayPauseChanged")(func)
 
     def on_volume_changed(self, func: Callable[[float | int], Any]) -> Callable[[float | int], Any]:
         """Register a callback for the ``VolumeChanged`` event.
 
-        The callback receives the current volume as a number in the range
-        ``0`` to ``100``.
-
-        Note:
-            Use this decorator without parentheses, for example
-            ``@server.on_volume_changed``.
+        The callback receives the current volume percentage
+         as a :class:`float` or :class:`int` (0-100%).
 
         Args:
-            func: Callback that accepts the current volume percentage.
+            func: Callback function that receives a volume
+             percentage (:class:`float` or :class:`int`).
 
         Returns:
             The original callback, unchanged.
-
         """
         return self.on("VolumeChanged")(func)
 
     def on_repeat_changed(self, func: Callable[[RepeatMode], Any]) -> Callable[[RepeatMode], Any]:
         """Register a callback for the ``RepeatChanged`` event.
 
-        The callback receives a :class:`RepeatMode` value.
-
-        Note:
-            Use this decorator without parentheses, for example
-            ``@server.on_repeat_changed``.
+        The callback receives a :class:`RepeatMode` enum value.
 
         Args:
-            func: Callback that accepts the current repeat mode.
+            func: Callback function that receives a :class:`RepeatMode` value.
 
         Returns:
             The original callback, unchanged.
-
         """
         return self.on("RepeatChanged")(func)
 
     def on_shuffle_changed(self, func: Callable[[bool], Any]) -> Callable[[bool], Any]:
         """Register a callback for the ``ShuffleChanged`` event.
 
-        The callback receives ``True`` or ``False`` to indicate whether
-        shuffle is enabled.
-
-        Note:
-            Use this decorator without parentheses, for example
-            ``@server.on_shuffle_changed``.
+        The callback receives a :class:`bool` indicating whether shuffle is enabled.
 
         Args:
-            func: Callback that accepts the shuffle state.
+            func: Callback function that receives a :class:`bool` state.
 
         Returns:
             The original callback, unchanged.
-
         """
         return self.on("ShuffleChanged")(func)
 
     def on_seek_changed(self, func: Callable[[int | float], Any]) -> Callable[[int | float], Any]:
         """Register a callback for the ``SeekChanged`` event.
 
-        The callback receives the seek position in milliseconds.
-
-        Note:
-            Use this decorator without parentheses, for example
-            ``@server.on_seek_changed``.
+        The callback receives the seek position in milliseconds
+         as an :class:`int` or :class:`float`.
 
         Args:
-            func: Callback that accepts the current seek position.
+            func: Callback function that receives the seek position in milliseconds.
 
         Returns:
             The original callback, unchanged.
-
         """
         return self.on("SeekChanged")(func)
 
-    # -------------------------------
+    def on_ping(self, func: Callable[[datetime], Any]) -> Callable[[datetime], Any]:
+        """Register a callback for the ``Ping`` heartbeat event.
+
+        The callback receives a UTC :class:`datetime` object representing
+        the heartbeat timestamp received from Spicetify.
+
+        Args:
+            func: Callback function that receives a :class:`datetime` object in UTC.
+
+        Returns:
+            The original callback, unchanged.
+        """
+        return self.on("Ping")(func)
 
     # --- Event Dispatch ---
 
     async def _dispatch_event(self, event_name: str, payload: dict[str, Any]) -> None:
         """Dispatch an incoming event to all registered callbacks.
 
-        The event payload is converted into a typed Python object when a known
-        event type is received. Synchronous callbacks are invoked directly,
-        while coroutine callbacks are scheduled as background tasks.
-
         Args:
             event_name: Name of the received event.
             payload: Event payload received from Spicetify.
-
         """
         key = event_name.lower()
         callbacks = self._event_callbacks.get(key, [])
@@ -288,7 +251,6 @@ class SpotifyServer:
         parsed_data = self._parse_event_payload(event_name, payload)
 
         for callback in callbacks:
-            # noinspection broad-exception
             try:
                 if inspect.iscoroutinefunction(callback):
                     task = asyncio.create_task(callback(parsed_data))
@@ -309,7 +271,6 @@ class SpotifyServer:
 
         Returns:
             A typed representation for known events, or the raw payload for unknown events.
-
         """
         key = event_name.lower()
 
@@ -322,11 +283,19 @@ class SpotifyServer:
         elif key == "volumechanged":
             return round(payload.get("level", 0) * 100, 2)
         elif key == "repeatchanged":
-            return RepeatMode(payload.get("mode"))
+            try:
+                return RepeatMode(payload.get("mode", 0))
+            except (ValueError, TypeError):
+                return RepeatMode.OFF
         elif key == "shufflechanged":
             return payload.get("state")
         elif key == "seekchanged":
             return payload.get("position")
+        elif key == "ping":
+            ts = payload.get("timestamp")
+            if isinstance(ts, (int, float)):
+                return datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc)
+            return payload
 
         return payload
 
@@ -384,16 +353,21 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If no active WebSocket connection exists.
             RequestTimeoutError: If the response doesn't arrive within timeout.
+            UnauthorizedError: If the API key token is invalid or missing.
+            SpicetifyError: If Spicetify responds with an error status.
         """
         if not self.websocket:
             raise NotConnectedError()
+
+        if self.api_key is not None:
+            request.token = self.api_key
 
         loop = asyncio.get_running_loop()
         future = loop.create_future()
 
         self._pending_requests[request.requestId] = future
 
-        json_data = request.model_dump_json()
+        json_data = request.model_dump_json(exclude_none=True)
         logger.debug("Send: %s", json_data)
         await self.websocket.send(json_data)
 
@@ -406,8 +380,14 @@ class SpotifyServer:
 
     async def start(self) -> None:
         """Start the WebSocket server."""
-        self.server = await serve(self._handler, self.host, self.port)
-        logger.info("Server started on %s:%d", self.host, self.port)
+        ssl_ctx = self.ssl_context
+        if ssl_ctx is None and self.certfile and self.keyfile:
+            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_ctx.load_cert_chain(certfile=self.certfile, keyfile=self.keyfile)
+
+        self.server = await serve(self._handler, self.host, self.port, ssl=ssl_ctx)
+        scheme = "wss" if ssl_ctx else "ws"
+        logger.info("Server started on %s://%s:%d", scheme, self.host, self.port)
 
     async def stop(self) -> None:
         """Stop the WebSocket server and close any active connection."""
@@ -430,7 +410,7 @@ class SpotifyServer:
         """
         self.websocket = websocket
         self._connected_event.set()
-        logger.info(f"Connection established with {websocket.remote_address[0]}.")
+        logger.info("Connection established with %s.", websocket.remote_address[0])
         try:
             async for message in websocket:
                 try:
@@ -438,6 +418,13 @@ class SpotifyServer:
 
                     event_name = data.get("eventName")
                     request_id = data.get("requestId")
+                    incoming_token = data.get("token")
+
+                    if self.api_key is not None and incoming_token != self.api_key:
+                        logger.warning(
+                            "Dropped incoming message due to invalid or missing API key token."
+                        )
+                        continue
 
                     if (
                         event_name == "Response"
@@ -447,8 +434,30 @@ class SpotifyServer:
                         future = self._pending_requests.pop(request_id)
                         if not future.done():
                             if data.get("success") is False:
-                                msg = data.get("message", "Unknown Spicetify error")
-                                future.set_exception(SpicetifyError(f"Request failed: {msg}"))
+                                raw_msg = (
+                                    data.get("error")
+                                    or data.get("message")
+                                    or "Unknown Spicetify error"
+                                )
+                                msg = str(raw_msg)
+
+                                is_auth_error = any(
+                                    term in msg.lower()
+                                    for term in (
+                                        "unauthorized",
+                                        "token",
+                                        "api key",
+                                        "forbidden",
+                                        "denied",
+                                    )
+                                )
+
+                                if is_auth_error:
+                                    future.set_exception(
+                                        UnauthorizedError(f"Request failed: {msg}")
+                                    )
+                                else:
+                                    future.set_exception(SpicetifyError(f"Request failed: {msg}"))
                             else:
                                 future.set_result(data)
                             logger.debug(
@@ -456,19 +465,38 @@ class SpotifyServer:
                                 request_id,
                                 data,
                             )
+                        continue
 
-                    elif event_name:
+                    if event_name:
                         logger.debug("Event received: %s: %s", event_name, data.get("payload"))
                         await self._dispatch_event(event_name, data.get("payload", {}))
 
                     else:
-                        logger.debug("Event received: %s: %s", event_name, data.get("payload"))
+                        logger.debug("Received message without eventName or requestId: %s", data)
                 except json.JSONDecodeError:
                     logger.error("JSON parsing error: %s", message)
         finally:
             self.websocket = None
             self._connected_event.clear()
             logger.info("Connection lost.")
+
+    # --- Active Ping ---
+
+    async def ping(self) -> float:
+        """Send a Ping request to Spotify and measure round-trip latency.
+
+        Returns:
+            Round-trip latency in milliseconds.
+
+        Raises:
+            NotConnectedError: If not connected to Spicetify.
+            RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
+        """
+        start_time = time.perf_counter()
+        await self._send_command(PingRequest())
+        end_time = time.perf_counter()
+        return (end_time - start_time) * 1000.0
 
     # --- Playback Controls ---
 
@@ -478,6 +506,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(PlayRequest())
 
@@ -487,6 +516,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(PauseRequest())
 
@@ -496,6 +526,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(NextSongRequest())
 
@@ -514,6 +545,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         if force:
             await self._send_command(ForcePreviousSongRequest())
@@ -532,6 +564,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(SetRepeatRequest(mode=mode))
         return mode
@@ -548,6 +581,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(SetShuffleRequest(state=state))
         return state
@@ -564,6 +598,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(SetMuteRequest(state=state))
         return state
@@ -574,6 +609,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(TogglePlayRequest())
 
@@ -589,6 +625,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
             ValueError: If percent is not between 0 and 100.
         """
         if not 0 <= percent <= 100:
@@ -608,6 +645,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self._send_command(PlayUriRequest(uri=uri))
         return uri
@@ -624,6 +662,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         await self.play_uri(uri=url)
         return url
@@ -640,6 +679,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
             ValueError: If position is negative.
         """
         if not position >= 0:
@@ -658,6 +698,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         response = await self._send_command(GetPlayerStateRequest())
         return PlayerState.from_payload(response.get("payload", {}).get("playerData", {}))
@@ -671,6 +712,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         response = await self._send_command(GetPlayPauseRequest())
         return response.get("payload", {}).get("isPlaying", False)
@@ -684,6 +726,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         response = await self._send_command(GetVolumeRequest())
         return response.get("payload", {}).get("level", 0) * 100
@@ -697,6 +740,7 @@ class SpotifyServer:
         Raises:
             NotConnectedError: If not connected to Spicetify.
             RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
         """
         response = await self._send_command(GetCurrentTrackRequest())
         return TrackInfo.from_payload(response.get("payload", {}))

@@ -25,3 +25,14 @@ class RequestTimeoutError(SpicetifyError):
         self.command = command
         self.timeout = timeout
         super().__init__(f"Command '{command}' did not respond within {timeout}s.")
+
+
+class UnauthorizedError(SpicetifyError):
+    """Raised when an incoming or outgoing message fails API key token validation.
+
+    Args:
+        message: Human-readable error message.
+    """
+
+    def __init__(self, message="Invalid or missing API key token."):
+        super().__init__(message)

@@ -1,6 +1,6 @@
 """Tests for data models and request serialization."""
 
-from spicetify import ArtistInfo, PlayerState, RepeatMode, TrackInfo
+from spicetify import ArtistInfo, PingRequest, PlayerState, RepeatMode, TrackInfo
 from spicetify.models import SetVolumeRequest, _convert_spotify_image_url
 
 
@@ -13,11 +13,22 @@ def test_artist_info_url():
 
 def test_set_volume_request_serialization():
     """Test serialization of SetVolumeRequest to Spicetify wire format."""
-    req = SetVolumeRequest(level=0.75)
-    data = req.model_dump()
+    req = SetVolumeRequest(level=0.75, token="secret123")
+    data = req.model_dump(exclude_none=True)
     assert data["requestName"] == "SetVolume"
     assert "requestId" in data
     assert data["payload"]["level"] == 0.75
+    assert data["token"] == "secret123"
+
+
+def test_ping_request_serialization():
+    """Test serialization of PingRequest."""
+    req = PingRequest(token="auth-key")
+    data = req.model_dump(exclude_none=True)
+    assert data["requestName"] == "Ping"
+    assert "requestId" in data
+    assert data["payload"] == {}
+    assert data["token"] == "auth-key"
 
 
 def test_track_info_parsing_and_properties():
@@ -48,6 +59,7 @@ def test_player_state_parsing_and_properties():
         "positionAsOfTimestamp": 10000,
         "duration": 200000,
         "shuffle": True,
+        "smartShuffle": False,
         "repeat": 1,
         "context": {"uri": "spotify:playlist:123"},
     }
@@ -62,17 +74,14 @@ def test_player_state_parsing_and_properties():
 
 def test_models_edge_cases():
     """Test remaining edge cases in models.py for full coverage."""
-    # Pass-through for non-spotify image URLs
     assert (
         _convert_spotify_image_url("https://example.com/pic.jpg") == "https://example.com/pic.jpg"
     )
     assert _convert_spotify_image_url("") == ""
 
-    # Track without any artwork/images
     track_no_img = TrackInfo.from_payload({"track": {"name": "No Image Track", "images": []}})
     assert track_no_img.image_url is None
 
-    # PlayerState without context URI or item
     state_no_ctx = PlayerState.from_payload({})
     assert state_no_ctx.context_url is None
     assert state_no_ctx.track is None

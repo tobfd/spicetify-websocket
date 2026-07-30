@@ -11,3 +11,5 @@
    spicetify/server
    spicetify/models
    spicetify/exceptions
+   examples/examples
+   guides/guides

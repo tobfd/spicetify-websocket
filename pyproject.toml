@@ -64,3 +64,6 @@ extend-select = [
 [tool.pytest.ini_options]
 addopts = "--cov=spicetify --cov-report=term-missing --cov-report=html"
 asyncio_mode = "auto"
+
+[tool.setuptools.packages.find]
+include = ["spicetify*"]
