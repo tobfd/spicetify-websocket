@@ -1,16 +1,17 @@
 WSS (WebSocket Secure)
 ======================
 
-You can encrypt the WebSocket communication using SSL/TLS certificates for **Secure WebSockets (wss://)**.
+You can encrypt WebSocket communication using SSL/TLS for **Secure WebSockets (wss://)**.
 
 How It Works:
 
-- Pass ``certfile`` and ``keyfile`` paths (or a custom :class:`ssl.SSLContext`) to :class:`~spicetify.server.SpotifyServer`.
-- The server will automatically start using the ``wss://`` scheme instead of ``ws://``.
-- You can freely combine WSS encryption with ``api_key`` authentication.
+- **Direct SSL/TLS (Local / LAN):** Pass ``certfile`` and ``keyfile`` paths (or a custom :class:`ssl.SSLContext`) to :class:`~spicetify.SpotifyServer`. The server will automatically use the ``wss://`` scheme.
+- **Reverse Proxy (VPS / Nginx):** When deploying behind a proxy like Nginx or Caddy, SSL is terminated at the proxy level. Python runs on unencrypted ``ws://`` locally, while Nginx handles public ``wss://`` traffic.
+- You can freely combine WSS encryption with ``api_key`` authentication in any setup.
 
-.. hint::
-   When using self-signed certificates locally, ensure the certificate is trusted by your system/browser store or configured with a SAN (Subject Alternative Name) for ``127.0.0.1`` / ``localhost``.
+.. note::
+   - For setting up local self-signed certificates with SAN, see the :doc:`/guides/local_wss` guide.
+   - For production VPS deployment with Nginx and Let's Encrypt, see the :doc:`/guides/vps_deployment` guide.
 
 .. literalinclude:: ../../examples/wss.py
    :language: python

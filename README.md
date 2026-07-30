@@ -16,6 +16,7 @@ An asynchronous Python wrapper and WebSocket server for controlling the Spotify 
 - 🛠️ **Convenience Decorators:** Easy event listening with syntax like `@server.on_song_changed`.
 - 🏷️ **Fully Typed:** Pydantic V2 models (`TrackInfo`, `PlayerState`, `RepeatMode`).
 - 🔄 **Async & Non-blocking:** Built on `asyncio` and `websockets` for maximum performance.
+
 ---
 
 ## ⚙️ Installation
@@ -34,6 +35,16 @@ To use this library, ensure you have:
 1. **Spotify Desktop Client** installed.
 2. **[Spicetify CLI](https://spicetify.app/)** installed and configured.
 3. The **[spicetify-connect-api](https://github.com/tobfd/spicetify-connect-api)** extension enabled in Spicetify.
+
+---
+
+## 📚 Documentation & Guides
+
+Explore the official [documentation](https://spicetify-websocket.readthedocs.io/) for detailed references and setup guides:
+
+- 📖 **[API Reference](https://spicetify-websocket.readthedocs.io/)** – Full documentation for `SpotifyServer`, models, decorators, and exceptions.
+- 💡 **[Code Examples](https://spicetify-websocket.readthedocs.io/en/latest/examples/examples.html)** – Runnable scripts for basic usage, API key auth, and WSS encryption.
+- 🛠️ **[Deployment Guides](https://spicetify-websocket.readthedocs.io/en/latest/guides/guides.html)** – Step-by-step guides for local WSS setups and production VPS deployment.
 
 ---
 
@@ -83,8 +94,9 @@ if __name__ == "__main__":
 | `SongChanged` | `@server.on_song_changed` | `TrackInfo` | Fired when a new track starts playing. |
 | `PlayPauseChanged` | `@server.on_play_pause_changed` | `PlayerState` | Fired when playback state changes. |
 | `VolumeChanged` | `@server.on_volume_changed` | `float` (0–100%) | Fired when volume level changes. |
-| `RepeatChanged` | `@server.on_repeat_changed` | `RepeatMode` | Fired when repeat mode changes (OFF, CONTEXT, TRACK). |
+| `RepeatChanged` | `@server.on_repeat_changed` | `RepeatMode` | Fired when repeat mode changes (`OFF`, `CONTEXT`, `TRACK`). |
 | `ShuffleChanged` | `@server.on_shuffle_changed` | `bool` | Fired when shuffle mode is toggled. |
 | `SeekChanged` | `@server.on_seek_changed` | `int` (ms) | Fired when timeline position is manually changed. |
 | `Ping` | `@server.on_ping` | `datetime` (UTC) | Fired on periodic heartbeat pings from Spicetify. |
+
 ---
