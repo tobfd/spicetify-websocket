@@ -13,3 +13,4 @@
    spicetify/exceptions
    examples/examples
    guides/guides
+   pages/contributing
