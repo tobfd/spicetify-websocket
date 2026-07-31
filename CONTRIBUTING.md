@@ -42,4 +42,4 @@ After the build succeeds, open `docs/_build/html/index.html` in your browser to 
 ## 💡 Other Resources
 
 * Feel free to open a [Bug Report or Feature Request](https://github.com/tobfd/spicetify-websocket/issues) on GitHub.
-* Please ensure all interactions follow our [Code of Conduct](https://github.com/tobfd/spicetify-websocket/blob/master/CODE_OF_CONDUCT.md).
+* Please ensure all interactions follow our [Code of Conduct](https://github.com/tobfd/spicetify-websocket?tab=coc-ov-file).
