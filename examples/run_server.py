@@ -25,9 +25,7 @@ async def main():
         print("Is Spotify playing:", is_playing)
 
         # Playback Controls
-        await server.play_url(
-            url="https://open.spotify.com/intl-de/track/55pBIZO1cqoldeqpp5WR7H?si=57cde33a1bd34ac9"
-        )
+        await server.play_url(url="https://open.spotify.com/intl-de/track/55pBIZO1cqoldeqpp5WR7H")
         await server.set_volume(percent=75)
         await server.set_repeat(mode=RepeatMode.TRACK)
 
