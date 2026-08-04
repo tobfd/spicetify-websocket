@@ -1,12 +1,6 @@
 import asyncio
-import logging
 
 from spicetify import PlayerState, RepeatMode, SpotifyServer
-
-logging.basicConfig(
-    level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logging.getLogger("spicetify").setLevel(logging.INFO)
 
 
 async def main():
