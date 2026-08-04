@@ -18,27 +18,27 @@ from .exceptions import (
     UnauthorizedError,
 )
 from .models import (
-    BaseRequest,
-    ForcePreviousSongRequest,
-    GetCurrentTrackRequest,
-    GetPlayerStateRequest,
-    GetPlayPauseRequest,
-    GetVolumeRequest,
-    NextSongRequest,
-    PauseRequest,
-    PingRequest,
     PlayerState,
-    PlayRequest,
-    PlayUriRequest,
-    PreviousSongRequest,
     RepeatMode,
-    SeekRequest,
-    SetMuteRequest,
-    SetRepeatRequest,
-    SetShuffleRequest,
-    SetVolumeRequest,
-    TogglePlayRequest,
     TrackInfo,
+    _BaseRequest,
+    _ForcePreviousSongRequest,
+    _GetCurrentTrackRequest,
+    _GetPlayerStateRequest,
+    _GetPlayPauseRequest,
+    _GetVolumeRequest,
+    _NextSongRequest,
+    _PauseRequest,
+    _PingRequest,
+    _PlayRequest,
+    _PlayUriRequest,
+    _PreviousSongRequest,
+    _SeekRequest,
+    _SetMuteRequest,
+    _SetRepeatRequest,
+    _SetShuffleRequest,
+    _SetVolumeRequest,
+    _TogglePlayRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,14 +99,10 @@ class SpotifyServer:
         matched case-insensitively.
 
         Args:
-            event_name: Name of the Spicetify event to subscribe to.
+            event_name: Name of the Spicetify event to subscribe to, or '*' for all state events.
 
         Returns:
             A decorator that registers the given function as event handler.
-
-        Note:
-            This method is a decorator factory and must be called with the
-            event name, for example ``@server.on("SongChanged")``.
         """
 
         def decorator(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
@@ -120,28 +116,33 @@ class SpotifyServer:
 
     # --- Convenience Event Decorators ---
 
+    def on_state_changed(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
+        """Register a wildcard callback that fires on EVERY state update event.
+
+        Args:
+            func: Callback function receiving a :class:`PlayerState` object.
+
+        Returns:
+            The original callback, unchanged.
+        """
+        return self.on("*")(func)
+
     def on_initial_state(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``InitialState`` event.
 
-        The callback receives a :class:`PlayerState` object containing
-        the initial player data when Spicetify connects.
-
         Args:
-            func: Callback function that receives a :class:`PlayerState` object.
+            func: Callback function receiving a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
         """
         return self.on("InitialState")(func)
 
-    def on_song_changed(self, func: Callable[[TrackInfo], Any]) -> Callable[[TrackInfo], Any]:
+    def on_song_changed(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``SongChanged`` event.
 
-        The callback receives a :class:`TrackInfo` object representing
-        the currently playing track.
-
         Args:
-            func: Callback function that receives a :class:`TrackInfo` object.
+            func: Callback function receiving a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
@@ -153,66 +154,54 @@ class SpotifyServer:
     ) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``PlayPauseChanged`` event.
 
-        The callback receives a :class:`PlayerState` object representing
-        the updated playback state.
-
         Args:
-            func: Callback function that receives a :class:`PlayerState` object.
+            func: Callback function receiving a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
         """
         return self.on("PlayPauseChanged")(func)
 
-    def on_volume_changed(self, func: Callable[[float | int], Any]) -> Callable[[float | int], Any]:
+    def on_volume_changed(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``VolumeChanged`` event.
 
-        The callback receives the current volume percentage
-         as a :class:`float` or :class:`int` (0-100%).
-
         Args:
-            func: Callback function that receives a volume
-             percentage (:class:`float` or :class:`int`).
+            func: Callback function receiving a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
         """
         return self.on("VolumeChanged")(func)
 
-    def on_repeat_changed(self, func: Callable[[RepeatMode], Any]) -> Callable[[RepeatMode], Any]:
+    def on_repeat_changed(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``RepeatChanged`` event.
 
-        The callback receives a :class:`RepeatMode` enum value.
-
         Args:
-            func: Callback function that receives a :class:`RepeatMode` value.
+            func: Callback function receiving a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
         """
         return self.on("RepeatChanged")(func)
 
-    def on_shuffle_changed(self, func: Callable[[bool], Any]) -> Callable[[bool], Any]:
+    def on_shuffle_changed(
+        self, func: Callable[[PlayerState], Any]
+    ) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``ShuffleChanged`` event.
 
-        The callback receives a :class:`bool` indicating whether shuffle is enabled.
-
         Args:
-            func: Callback function that receives a :class:`bool` state.
+            func: Callback function receiving a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
         """
         return self.on("ShuffleChanged")(func)
 
-    def on_seek_changed(self, func: Callable[[int | float], Any]) -> Callable[[int | float], Any]:
+    def on_seek_changed(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
         """Register a callback for the ``SeekChanged`` event.
 
-        The callback receives the seek position in milliseconds
-         as an :class:`int` or :class:`float`.
-
         Args:
-            func: Callback function that receives the seek position in milliseconds.
+            func: Callback function receiving a :class:`PlayerState` object.
 
         Returns:
             The original callback, unchanged.
@@ -222,11 +211,8 @@ class SpotifyServer:
     def on_ping(self, func: Callable[[datetime], Any]) -> Callable[[datetime], Any]:
         """Register a callback for the ``Ping`` heartbeat event.
 
-        The callback receives a UTC :class:`datetime` object representing
-        the heartbeat timestamp received from Spicetify.
-
         Args:
-            func: Callback function that receives a :class:`datetime` object in UTC.
+            func: Callback function receiving a :class:`datetime` object in UTC.
 
         Returns:
             The original callback, unchanged.
@@ -243,14 +229,20 @@ class SpotifyServer:
             payload: Event payload received from Spicetify.
         """
         key = event_name.lower()
-        callbacks = self._event_callbacks.get(key, [])
+        specific_callbacks = self._event_callbacks.get(key, [])
 
-        if not callbacks:
+        wildcard_callbacks = [] if key == "ping" else self._event_callbacks.get("*", [])
+
+        all_callbacks = specific_callbacks + [
+            cb for cb in wildcard_callbacks if cb not in specific_callbacks
+        ]
+        if not all_callbacks:
             return
 
         parsed_data = self._parse_event_payload(event_name, payload)
 
-        for callback in callbacks:
+        for callback in all_callbacks:
+            # noinspection broad-exception
             try:
                 if inspect.iscoroutinefunction(callback):
                     task = asyncio.create_task(callback(parsed_data))
@@ -270,34 +262,16 @@ class SpotifyServer:
             payload: Raw payload as received from Spicetify.
 
         Returns:
-            A typed representation for known events, or the raw payload for unknown events.
+            A UTC :class:`datetime` for Ping events, or a :class:`PlayerState`
+            object for all other events.
         """
-        key = event_name.lower()
-
-        if key == "initialstate":
-            return PlayerState.from_payload(payload.get("playerData", payload))
-        elif key == "playpausechanged":
-            return PlayerState.from_payload(payload.get("playerState", payload))
-        elif key == "songchanged":
-            return TrackInfo.from_payload(payload)
-        elif key == "volumechanged":
-            return round(payload.get("level", 0) * 100, 2)
-        elif key == "repeatchanged":
-            try:
-                return RepeatMode(payload.get("mode", 0))
-            except (ValueError, TypeError):
-                return RepeatMode.OFF
-        elif key == "shufflechanged":
-            return payload.get("state")
-        elif key == "seekchanged":
-            return payload.get("position")
-        elif key == "ping":
+        if event_name.lower() == "ping":
             ts = payload.get("timestamp")
             if isinstance(ts, (int, float)):
                 return datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc)
             return payload
 
-        return payload
+        return PlayerState.from_payload(payload, event_name=event_name)
 
     # --- Async Context Manager ---
 
@@ -321,7 +295,6 @@ class SpotifyServer:
 
         Args:
             timeout: Maximum time to wait in seconds. If ``None``, waits indefinitely.
-                Defaults to ``None``.
 
         Raises:
             NotConnectedError: If timeout expires before connection is established.
@@ -340,7 +313,7 @@ class SpotifyServer:
 
     # --- Server Lifecycle ---
 
-    async def _send_command(self, request: BaseRequest, timeout: float = 5.0) -> dict:
+    async def _send_command(self, request: _BaseRequest, timeout: float = 5.0) -> dict:
         """Send a command request to Spicetify and wait for its response.
 
         Args:
@@ -372,8 +345,7 @@ class SpotifyServer:
         await self.websocket.send(json_data)
 
         try:
-            response_data = await asyncio.wait_for(future, timeout=timeout)
-            return response_data
+            return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
             self._pending_requests.pop(request.requestId, None)
             raise RequestTimeoutError(request.requestName, timeout) from None
@@ -480,7 +452,7 @@ class SpotifyServer:
             self._connected_event.clear()
             logger.info("Connection lost.")
 
-    # --- Active Ping ---
+    # --- Active Ping & Commands ---
 
     async def ping(self) -> float:
         """Send a Ping request to Spotify and measure round-trip latency.
@@ -494,11 +466,9 @@ class SpotifyServer:
             UnauthorizedError: If the API key token is invalid or missing.
         """
         start_time = time.perf_counter()
-        await self._send_command(PingRequest())
+        await self._send_command(_PingRequest())
         end_time = time.perf_counter()
         return (end_time - start_time) * 1000.0
-
-    # --- Playback Controls ---
 
     async def play(self) -> None:
         """Send a command to start playback.
@@ -508,7 +478,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(PlayRequest())
+        await self._send_command(_PlayRequest())
 
     async def pause(self) -> None:
         """Send a command to pause playback.
@@ -518,7 +488,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(PauseRequest())
+        await self._send_command(_PauseRequest())
 
     async def next_song(self) -> None:
         """Send a command to play the next song.
@@ -528,16 +498,10 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(NextSongRequest())
+        await self._send_command(_NextSongRequest())
 
     async def previous_song(self, force: bool = False) -> None:
         """Send a command to play the previous song.
-
-        Notes:
-            If force is ``True``, the previous song will be played
-            regardless of the current playback position.
-            If force is ``False``, it could either restart the current
-            song or play the previous song based on the playback position.
 
         Args:
             force: If ``True``, ensures the previous song is played.
@@ -548,9 +512,9 @@ class SpotifyServer:
             UnauthorizedError: If the API key token is invalid or missing.
         """
         if force:
-            await self._send_command(ForcePreviousSongRequest())
+            await self._send_command(_ForcePreviousSongRequest())
         else:
-            await self._send_command(PreviousSongRequest())
+            await self._send_command(_PreviousSongRequest())
 
     async def set_repeat(self, mode: RepeatMode) -> RepeatMode:
         """Set the repeat mode for playback.
@@ -566,7 +530,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(SetRepeatRequest(mode=mode))
+        await self._send_command(_SetRepeatRequest(mode=mode))
         return mode
 
     async def set_shuffle(self, state: bool) -> bool:
@@ -583,7 +547,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(SetShuffleRequest(state=state))
+        await self._send_command(_SetShuffleRequest(state=state))
         return state
 
     async def set_mute(self, state: bool) -> bool:
@@ -600,7 +564,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(SetMuteRequest(state=state))
+        await self._send_command(_SetMuteRequest(state=state))
         return state
 
     async def toggle_play(self) -> None:
@@ -611,7 +575,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(TogglePlayRequest())
+        await self._send_command(_TogglePlayRequest())
 
     async def set_volume(self, percent: float) -> float | int:
         """Set Spotify volume level.
@@ -630,7 +594,7 @@ class SpotifyServer:
         """
         if not 0 <= percent <= 100:
             raise ValueError("percent must be between 0 and 100.")
-        await self._send_command(SetVolumeRequest(level=(percent / 100)))
+        await self._send_command(_SetVolumeRequest(level=(percent / 100)))
         return percent
 
     async def play_uri(self, uri: str) -> str:
@@ -647,7 +611,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        await self._send_command(PlayUriRequest(uri=uri))
+        await self._send_command(_PlayUriRequest(uri=uri))
         return uri
 
     async def play_url(self, url: str) -> str:
@@ -684,7 +648,7 @@ class SpotifyServer:
         """
         if not position >= 0:
             raise ValueError("position must be greater than or equal to 0.")
-        await self._send_command(SeekRequest(position=position))
+        await self._send_command(_SeekRequest(position=position))
         return position
 
     # --- Playback State Queries ---
@@ -700,8 +664,8 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        response = await self._send_command(GetPlayerStateRequest())
-        return PlayerState.from_payload(response.get("payload", {}).get("playerData", {}))
+        response = await self._send_command(_GetPlayerStateRequest())
+        return PlayerState.from_payload(response.get("payload", {}), event_name="GetPlayerState")
 
     async def get_is_playing(self) -> bool:
         """Get the current play/pause state from Spicetify.
@@ -714,7 +678,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        response = await self._send_command(GetPlayPauseRequest())
+        response = await self._send_command(_GetPlayPauseRequest())
         return response.get("payload", {}).get("isPlaying", False)
 
     async def get_volume(self) -> float | int:
@@ -728,7 +692,7 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        response = await self._send_command(GetVolumeRequest())
+        response = await self._send_command(_GetVolumeRequest())
         return response.get("payload", {}).get("level", 0) * 100
 
     async def get_current_track(self) -> TrackInfo:
@@ -742,5 +706,5 @@ class SpotifyServer:
             RequestTimeoutError: If Spicetify doesn't respond in time.
             UnauthorizedError: If the API key token is invalid or missing.
         """
-        response = await self._send_command(GetCurrentTrackRequest())
+        response = await self._send_command(_GetCurrentTrackRequest())
         return TrackInfo.from_payload(response.get("payload", {}))

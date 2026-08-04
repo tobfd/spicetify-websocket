@@ -9,12 +9,12 @@ An asynchronous Python wrapper and WebSocket server for controlling the Spotify 
 
 ## ✨ Features
 
-- ⚡ **Real-time Push Events:** Instant updates for song changes, volume, seeking, ping heartbeats, and playback state.
+- ⚡ **Real-time Push Events:** Instant updates for song changes, volume, seeking, shuffle, repeat, and ping heartbeats.
+- 🌐 **Wildcard State Decorator:** Listen to every state update event with a single `@server.on_state_changed` decorator.
 - 🎮 **Full Playback Control:** Play, pause, skip, seek, volume, repeat, shuffle, and ping latency checks.
 - 🔑 **API Key Security:** Optional token authorization for securing command execution and event streaming.
 - 🔒 **Secure WebSockets (WSS):** Built-in SSL/TLS support via `ssl_context` or `certfile`/`keyfile`.
-- 🛠️ **Convenience Decorators:** Easy event listening with syntax like `@server.on_song_changed`.
-- 🏷️ **Fully Typed:** Pydantic V2 models (`TrackInfo`, `PlayerState`, `RepeatMode`).
+- 🏷️ **Rich & Fully Typed Models:** Complete Pydantic V2 models.
 - 🔄 **Async & Non-blocking:** Built on `asyncio` and `websockets` for maximum performance.
 
 ---
@@ -52,17 +52,27 @@ Explore the official [documentation](https://spicetify-websocket.readthedocs.io/
 
 ```python
 import asyncio
-from spicetify import RepeatMode, SpotifyServer, TrackInfo
+import logging
+from spicetify import PlayerState, RepeatMode, SpotifyServer
 
 
 async def main():
     async with SpotifyServer() as server:
-
         # Events
         @server.on_song_changed
-        def callback(track: TrackInfo):
-            print("New song is playing:", track.title)
-            print("Artist/s:", ", ".join(artist.name for artist in track.artists))
+        def callback(state: PlayerState):
+            track = state.track
+            if track:
+                print("New song is playing:", track.title)
+                print("Artist/s:", ", ".join(artist.name for artist in track.artists))
+
+        # Wildcard listener triggering on every state update
+        @server.on_state_changed
+        def on_state_update(state: PlayerState):
+            print(
+                f"[{state.event_name}] Playing: {state.is_playing}"
+                f" | Vol: {state.volume}% | Pos: {state.position_seconds:.1f}s"
+            )
 
         # Wait until Spicetify client connects
         await server.wait_for_connection()
@@ -88,15 +98,16 @@ if __name__ == "__main__":
 
 ## 📻 Events Reference
 
+All state-related event handlers receive a comprehensive [`PlayerState`](https://spicetify-websocket.readthedocs.io/) object containing the full player snapshot.
+
 | Event Name | Convenience Decorator | Callback Payload Type | Description |
 | :--- | :--- | :--- | :--- |
+| `*` (Wildcard) | `@server.on_state_changed` | `PlayerState` | Fired on **every** player state update event. |
 | `InitialState` | `@server.on_initial_state` | `PlayerState` | Fired immediately when Spicetify connects. |
-| `SongChanged` | `@server.on_song_changed` | `TrackInfo` | Fired when a new track starts playing. |
-| `PlayPauseChanged` | `@server.on_play_pause_changed` | `PlayerState` | Fired when playback state changes. |
-| `VolumeChanged` | `@server.on_volume_changed` | `float` (0–100%) | Fired when volume level changes. |
-| `RepeatChanged` | `@server.on_repeat_changed` | `RepeatMode` | Fired when repeat mode changes (`OFF`, `CONTEXT`, `TRACK`). |
-| `ShuffleChanged` | `@server.on_shuffle_changed` | `bool` | Fired when shuffle mode is toggled. |
-| `SeekChanged` | `@server.on_seek_changed` | `int` (ms) | Fired when timeline position is manually changed. |
+| `SongChanged` | `@server.on_song_changed` | `PlayerState` | Fired when a new track starts playing. |
+| `PlayPauseChanged` | `@server.on_play_pause_changed` | `PlayerState` | Fired when playback state changes (play/pause). |
+| `VolumeChanged` | `@server.on_volume_changed` | `PlayerState` | Fired when volume level changes. |
+| `RepeatChanged` | `@server.on_repeat_changed` | `PlayerState` | Fired when repeat mode changes (`OFF`, `CONTEXT`, `TRACK`). |
+| `ShuffleChanged` | `@server.on_shuffle_changed` | `PlayerState` | Fired when shuffle mode is toggled. |
+| `SeekChanged` | `@server.on_seek_changed` | `PlayerState` | Fired when timeline position is manually changed. |
 | `Ping` | `@server.on_ping` | `datetime` (UTC) | Fired on periodic heartbeat pings from Spicetify. |
-
----

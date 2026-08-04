@@ -1,20 +1,32 @@
 __title__ = "spicetify-websocket"
 __license__ = "MIT"
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .exceptions import NotConnectedError, RequestTimeoutError, SpicetifyError, UnauthorizedError
-from .models import ArtistInfo, PingRequest, PlayerState, RepeatMode, TrackInfo
+from .models import (
+    AlbumInfo,
+    ArtistInfo,
+    PlaybackContext,
+    PlaybackRestrictions,
+    PlayerState,
+    RepeatMode,
+    TrackImages,
+    TrackInfo,
+)
 from .server import SpotifyServer
 
 __all__ = [
+    "AlbumInfo",
     "ArtistInfo",
     "NotConnectedError",
-    "PingRequest",
+    "PlaybackContext",
+    "PlaybackRestrictions",
     "PlayerState",
     "RepeatMode",
     "RequestTimeoutError",
     "SpicetifyError",
     "SpotifyServer",
+    "TrackImages",
     "TrackInfo",
     "UnauthorizedError",
     "__version__",

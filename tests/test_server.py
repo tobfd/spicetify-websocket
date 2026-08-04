@@ -3,6 +3,7 @@
 import asyncio
 import json
 import ssl
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,34 +17,49 @@ from spicetify import (
     TrackInfo,
     UnauthorizedError,
 )
-from spicetify.models import PlayRequest
+from spicetify.models import _PlayRequest
 
 
 @pytest.mark.asyncio
 async def test_event_registration_and_dispatch():
-    """Test registering an event handler and dispatching a song changed event."""
+    """Test registering event handlers and dispatching PlayerState updates."""
     server = SpotifyServer()
-    received_tracks = []
+    received_states = []
+    received_wildcards = []
 
     @server.on_song_changed
-    async def on_song(track: TrackInfo):
-        received_tracks.append(track)
+    async def on_song(state: PlayerState):
+        received_states.append(state)
+
+    @server.on_state_changed
+    def on_wildcard(state: PlayerState):
+        received_wildcards.append(state)
 
     raw_payload = {
-        "track": {
-            "uri": "spotify:track:xyz",
-            "name": "Async Track",
-            "duration": 120000,
-            "artists": [],
-            "album": {"name": "Album", "uri": "spotify:album:1"},
-        }
+        "isPlaying": True,
+        "volume": 0.8,
+        "playerState": {
+            "positionAsOfTimestamp": 5000,
+            "duration": 180000,
+            "item": {
+                "uri": "spotify:track:xyz",
+                "name": "Async Track",
+                "duration": 180000,
+                "artists": [],
+            },
+        },
     }
 
     await server._dispatch_event("SongChanged", raw_payload)
     await asyncio.sleep(0)
 
-    assert len(received_tracks) == 1
-    assert received_tracks[0].title == "Async Track"
+    assert len(received_states) == 1
+    assert received_states[0].event_name == "SongChanged"
+    assert received_states[0].track is not None
+    assert received_states[0].track.title == "Async Track"
+
+    assert len(received_wildcards) == 1
+    assert received_wildcards[0].event_name == "SongChanged"
 
 
 @pytest.mark.asyncio
@@ -51,35 +67,45 @@ async def test_convenience_decorators_registration():
     """Ensure all convenience decorators register callbacks correctly."""
     server = SpotifyServer()
 
+    @server.on_state_changed
+    def h0(_):
+        pass
+
     @server.on_initial_state
     def h1(_):
         pass
 
-    @server.on_play_pause_changed
+    @server.on_song_changed
     def h2(_):
         pass
 
-    @server.on_volume_changed
+    @server.on_play_pause_changed
     def h3(_):
         pass
 
-    @server.on_repeat_changed
+    @server.on_volume_changed
     def h4(_):
         pass
 
-    @server.on_shuffle_changed
+    @server.on_repeat_changed
     def h5(_):
         pass
 
-    @server.on_seek_changed
+    @server.on_shuffle_changed
     def h6(_):
         pass
 
-    @server.on_ping
+    @server.on_seek_changed
     def h7(_):
         pass
 
+    @server.on_ping
+    def h8(_):
+        pass
+
+    assert "*" in server._event_callbacks
     assert "initialstate" in server._event_callbacks
+    assert "songchanged" in server._event_callbacks
     assert "playpausechanged" in server._event_callbacks
     assert "volumechanged" in server._event_callbacks
     assert "repeatchanged" in server._event_callbacks
@@ -105,32 +131,10 @@ async def test_parse_event_payloads():
     """Test parsing various event payloads into models and primitives."""
     p_init = SpotifyServer._parse_event_payload("InitialState", {"playerData": {"isPaused": False}})
     assert isinstance(p_init, PlayerState)
+    assert p_init.event_name == "InitialState"
 
-    p_pp = SpotifyServer._parse_event_payload(
-        "PlayPauseChanged", {"playerState": {"isPaused": True}}
-    )
-    assert isinstance(p_pp, PlayerState)
-
-    p_song = SpotifyServer._parse_event_payload("SongChanged", {"track": {"name": "Song"}})
-    assert isinstance(p_song, TrackInfo)
-
-    p_vol = SpotifyServer._parse_event_payload("VolumeChanged", {"level": 0.75})
-    assert p_vol == 75.0
-
-    p_repeat = SpotifyServer._parse_event_payload("RepeatChanged", {"mode": 2})
-    assert p_repeat == RepeatMode.TRACK
-
-    p_repeat_invalid = SpotifyServer._parse_event_payload("RepeatChanged", {"mode": 999})
-    assert p_repeat_invalid == RepeatMode.OFF
-
-    p_shuffle = SpotifyServer._parse_event_payload("ShuffleChanged", {"state": True})
-    assert p_shuffle is True
-
-    p_seek = SpotifyServer._parse_event_payload("SeekChanged", {"position": 5000})
-    assert p_seek == 5000
-
-    p_unknown = SpotifyServer._parse_event_payload("CustomEvent", {"data": 123})
-    assert p_unknown == {"data": 123}
+    p_ping = SpotifyServer._parse_event_payload("Ping", {"timestamp": 1785633863000})
+    assert isinstance(p_ping, datetime)
 
 
 @pytest.mark.asyncio
@@ -226,7 +230,7 @@ async def test_ssl_context_configuration():
 async def test_api_key_token_injection():
     """Ensure token is injected into request when api_key is set."""
     server = SpotifyServer(api_key="my-key-123")
-    req = PlayRequest()
+    req = _PlayRequest()
 
     async def mock_send(_msg):
         fut = server._pending_requests.get(req.requestId)
@@ -250,7 +254,7 @@ async def test_unauthorized_response_handling():
     server = SpotifyServer()
     server.websocket = MagicMock()
 
-    req = PlayRequest()
+    req = _PlayRequest()
     loop = asyncio.get_running_loop()
     future = loop.create_future()
     server._pending_requests[req.requestId] = future
@@ -312,7 +316,7 @@ async def test_send_command_timeout():
     server.websocket = mock_ws
 
     with pytest.raises(RequestTimeoutError):
-        await server._send_command(PlayRequest(), timeout=0.01)
+        await server._send_command(_PlayRequest(), timeout=0.01)
 
 
 @pytest.mark.asyncio

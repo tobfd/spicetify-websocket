@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from spicetify import RepeatMode, SpotifyServer, TrackInfo
+from spicetify import PlayerState, RepeatMode, SpotifyServer
 
 logging.basicConfig(
     level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -13,9 +13,19 @@ async def main():
     async with SpotifyServer() as server:
         # Events
         @server.on_song_changed
-        def callback(track: TrackInfo):
-            print("New song is playing:", track.title)
-            print("Artist/s:", ", ".join(artist.name for artist in track.artists))
+        def callback(state: PlayerState):
+            track = state.track
+            if track:
+                print("New song is playing:", track.title)
+                print("Artist/s:", ", ".join(artist.name for artist in track.artists))
+
+        # Wildcard listener triggering on every state update
+        @server.on_state_changed
+        def on_state_update(state: PlayerState):
+            print(
+                f"[{state.event_name}] Playing: {state.is_playing}"
+                f" | Vol: {state.volume}% | Pos: {state.position_seconds:.1f}s"
+            )
 
         # Wait until Spicetify client connects
         await server.wait_for_connection()
