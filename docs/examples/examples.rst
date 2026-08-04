@@ -9,6 +9,7 @@ Here you can find practical code examples demonstrating how to use **spicetify-w
    main
    api_key
    wss
+   state_changed
 
 Main Example
 ------------

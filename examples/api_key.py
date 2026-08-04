@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime
 
-from spicetify import SpotifyServer, TrackInfo, UnauthorizedError
+from spicetify import PlayerState, SpotifyServer, UnauthorizedError
 
 
 async def main():
@@ -12,22 +12,24 @@ async def main():
         print("Server started on ws://127.0.0.1:9090 with API Key protection.")
 
         @server.on_song_changed
-        def on_song(track: TrackInfo):
-            print(f"🎵 Now playing: {track.title} by {', '.join(a.name for a in track.artists)}")
+        def on_song(state: PlayerState):
+            track = state.track
+            if track:
+                print(f"Now playing: {track.title} by {', '.join(a.name for a in track.artists)}")
 
         @server.on_ping
         def on_ping(ping_time: datetime):
-            print(f"💓 Heartbeat at: {ping_time.strftime('%H:%M:%S UTC')}")
+            print(f"Heartbeat at: {ping_time.strftime('%H:%M:%S UTC')}")
 
-        print("⏳ Waiting for Spicetify client to connect...")
+        print("Waiting for Spicetify client to connect...")
         await server.wait_for_connection()
-        print("✅ Spicetify client connected successfully!")
+        print("Spicetify client connected successfully!")
 
         try:
             latency = await server.ping()
-            print(f"⚡ Latency to Spicetify: {latency:.2f} ms")
+            print(f"Latency to Spicetify: {latency:.2f} ms")
         except UnauthorizedError:
-            print("❌ Authentication failed: Invalid API Key token!")
+            print("Authentication failed: Invalid API Key token!")
             return
 
         # Keep server running to receive push events

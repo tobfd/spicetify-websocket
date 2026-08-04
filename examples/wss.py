@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime
 
-from spicetify import SpotifyServer, TrackInfo
+from spicetify import PlayerState, SpotifyServer
 
 
 async def main():
@@ -17,19 +17,21 @@ async def main():
         print("Server started on wss://127.0.0.1:9090 (SSL/TLS encrypted).")
 
         @server.on_song_changed
-        def on_song(track: TrackInfo):
-            print(f"🎵 Now playing: {track.title}")
+        def on_song(state: PlayerState):
+            track = state.track
+            if track:
+                print(f"Now playing: {track.title}")
 
         @server.on_ping
         def on_ping(ping_time: datetime):
-            print(f"💓 Heartbeat at: {ping_time.strftime('%H:%M:%S UTC')}")
+            print(f"Heartbeat at: {ping_time.strftime('%H:%M:%S UTC')}")
 
-        print("⏳ Waiting for encrypted WSS connection from Spicetify...")
+        print("Waiting for encrypted WSS connection from Spicetify...")
         await server.wait_for_connection()
-        print("✅ Secure WSS connection established!")
+        print("Secure WSS connection established!")
 
         latency = await server.ping()
-        print(f"⚡ Encrypted ping latency: {latency:.2f} ms")
+        print(f"Encrypted ping latency: {latency:.2f} ms")
 
         # Keep server running to receive push events
         await asyncio.Event().wait()
