@@ -258,9 +258,20 @@ class SpotifyServer:
         parsed_data = self._parse_event_payload(event_name, payload)
 
         for callback in all_callbacks:
+            # noinspection broad-exception
             try:
                 if inspect.iscoroutinefunction(callback):
-                    task = asyncio.create_task(callback(parsed_data))
+
+                    async def _run_async(cb: Callable, data: Any) -> None:
+                        # noinspection broad-exception
+                        try:
+                            await cb(data)
+                        except Exception:
+                            logger.exception(
+                                "Error executing async event callback for %s", event_name
+                            )
+
+                    task = asyncio.create_task(_run_async(callback, parsed_data))
                     self._background_tasks.add(task)
                     task.add_done_callback(self._background_tasks.discard)
                 else:
@@ -282,9 +293,14 @@ class SpotifyServer:
         """
         if event_name.lower() == "ping":
             ts = payload.get("timestamp")
+            if isinstance(ts, str):
+                try:
+                    ts = float(ts)
+                except ValueError:
+                    ts = None
             if isinstance(ts, (int, float)):
                 return datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc)
-            return payload
+            return datetime.now(tz=timezone.utc)
 
         return PlayerState.from_payload(payload, event_name=event_name)
 
