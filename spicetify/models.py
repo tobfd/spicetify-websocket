@@ -170,6 +170,25 @@ class _PingRequest(_BaseRequest):
     requestName: Literal["Ping"] = "Ping"
 
 
+class _GetHeartRequest(_BaseRequest):
+    """Internal request to get the heart/like status of the current track."""
+
+    requestName: Literal["GetHeart"] = "GetHeart"
+
+
+class _SetHeartRequest(_BaseRequest):
+    """Internal request to set the heart/like status of the current track."""
+
+    requestName: Literal["SetHeart"] = "SetHeart"
+    status: bool = Field(..., description="True to heart/like, False to unheart")
+
+
+class _ToggleHeartRequest(_BaseRequest):
+    """Internal request to toggle the heart/like status of the current track."""
+
+    requestName: Literal["ToggleHeart"] = "ToggleHeart"
+
+
 class _SetShuffleRequest(_BaseRequest):
     """Internal request to enable or disable shuffle mode."""
 
@@ -290,6 +309,7 @@ class TrackInfo(BaseModel):
         is_explicit: Whether the track is explicit.
         has_lyrics: Whether lyrics are available (None if unknown).
         popularity: Track popularity score 0-100 (None if unknown).
+        is_hearted: Whether the track is liked/hearted (None if unknown/queue item).
         image_url: Standard artwork image URL.
         images: Artwork images in various resolutions.
     """
@@ -303,6 +323,7 @@ class TrackInfo(BaseModel):
     is_explicit: bool = False
     has_lyrics: bool | None = None
     popularity: int | None = None
+    is_hearted: bool | None = None
     image_url: str | None = None
     images: TrackImages = Field(default_factory=TrackImages)
 
@@ -404,6 +425,12 @@ class TrackInfo(BaseModel):
 
         title = track_data.get("name") or meta.get("title") or ""
 
+        is_hearted = _parse_optional_bool(track_data.get("isHearted"))
+        if is_hearted is None:
+            is_hearted = _parse_optional_bool(track_data.get("is_hearted"))
+        if is_hearted is None:
+            is_hearted = _parse_optional_bool(meta.get("isHearted"))
+
         return TrackInfo(
             uri=track_data.get("uri", ""),
             title=title,
@@ -414,6 +441,7 @@ class TrackInfo(BaseModel):
             is_explicit=_parse_optional_bool(track_data.get("isExplicit")) or False,
             has_lyrics=_parse_optional_bool(meta.get("has_lyrics")),
             popularity=_parse_optional_int(meta.get("popularity")),
+            is_hearted=is_hearted,
             image_url=img_standard,
             images=images_obj,
         )
@@ -551,6 +579,7 @@ class PlayerState(BaseModel):
         smart_shuffle: Whether smart shuffle mode is enabled.
         repeat_mode: Current repeat mode enum.
         item_index: Index position of current track in context/playlist (None if unavailable).
+        is_hearted: Whether the active track is liked/hearted.
         track: Currently loaded track metadata (None if no track active).
         context: Active playlist/context details (None if no context).
         restrictions: Permissions for playback control.
@@ -571,6 +600,7 @@ class PlayerState(BaseModel):
     smart_shuffle: bool = False
     repeat_mode: RepeatMode = RepeatMode.OFF
     item_index: int | None = None
+    is_hearted: bool = False
     track: TrackInfo | None = None
     context: PlaybackContext | None = None
     restrictions: PlaybackRestrictions = Field(default_factory=PlaybackRestrictions)
@@ -584,7 +614,10 @@ class PlayerState(BaseModel):
         """Return a human-readable string representation of the PlayerState."""
         event_str = self.event_name if self.event_name is not None else "None"
         track_info = str(self.track) if self.track is not None else "No track playing"
-        return f"PlayerState(event={event_str}, is_playing={self.is_playing}, track={track_info})"
+        return (
+            f"PlayerState(event={event_str}, is_playing={self.is_playing}, "
+            f"is_hearted={self.is_hearted}, track={track_info})"
+        )
 
     @property
     def position_seconds(self) -> float:
@@ -614,11 +647,24 @@ class PlayerState(BaseModel):
             context_data if isinstance(context_data, dict) else {}
         )
 
+        # Extract heart status
+        is_hearted_raw = payload.get("isHearted")
+        if is_hearted_raw is None:
+            is_hearted_raw = payload.get("is_hearted")
+        if is_hearted_raw is None and isinstance(player_data, dict):
+            is_hearted_raw = player_data.get("isHearted")
+        if is_hearted_raw is None and isinstance(player_data, dict):
+            is_hearted_raw = player_data.get("is_hearted")
+
+        is_hearted_val = _parse_optional_bool(is_hearted_raw) or False
+
         # Extract track
         track = None
         item = player_data.get("item")
         if item and isinstance(item, dict):
             track = TrackInfo.from_payload(item)
+            if track.is_hearted is None:
+                track.is_hearted = is_hearted_val
 
         # If track album is missing release_date, try extracting from context metadata
         if (
@@ -728,6 +774,7 @@ class PlayerState(BaseModel):
             smart_shuffle=smart_shuffle,
             repeat_mode=repeat_mode,
             item_index=item_index,
+            is_hearted=is_hearted_val,
             track=track,
             context=context,
             restrictions=restrictions,

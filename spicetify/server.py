@@ -24,6 +24,7 @@ from .models import (
     _BaseRequest,
     _ForcePreviousSongRequest,
     _GetCurrentTrackRequest,
+    _GetHeartRequest,
     _GetPlayerStateRequest,
     _GetPlayPauseRequest,
     _GetVolumeRequest,
@@ -34,10 +35,12 @@ from .models import (
     _PlayUriRequest,
     _PreviousSongRequest,
     _SeekRequest,
+    _SetHeartRequest,
     _SetMuteRequest,
     _SetRepeatRequest,
     _SetShuffleRequest,
     _SetVolumeRequest,
+    _ToggleHeartRequest,
     _TogglePlayRequest,
 )
 
@@ -208,6 +211,17 @@ class SpotifyServer:
         """
         return self.on("SeekChanged")(func)
 
+    def on_heart_changed(self, func: Callable[[PlayerState], Any]) -> Callable[[PlayerState], Any]:
+        """Register a callback for the ``HeartChanged`` event.
+
+        Args:
+            func: Callback function receiving a :class:`PlayerState` object.
+
+        Returns:
+            The original callback, unchanged.
+        """
+        return self.on("HeartChanged")(func)
+
     def on_ping(self, func: Callable[[datetime], Any]) -> Callable[[datetime], Any]:
         """Register a callback for the ``Ping`` heartbeat event.
 
@@ -231,8 +245,10 @@ class SpotifyServer:
         key = event_name.lower()
         specific_callbacks = self._event_callbacks.get(key, [])
 
+        # Wildcard '*' callbacks only trigger for PlayerState events, NOT for Ping
         wildcard_callbacks = [] if key == "ping" else self._event_callbacks.get("*", [])
 
+        # Avoid duplicate execution if a callback was registered twice
         all_callbacks = specific_callbacks + [
             cb for cb in wildcard_callbacks if cb not in specific_callbacks
         ]
@@ -242,7 +258,6 @@ class SpotifyServer:
         parsed_data = self._parse_event_payload(event_name, payload)
 
         for callback in all_callbacks:
-            # noinspection broad-exception
             try:
                 if inspect.iscoroutinefunction(callback):
                     task = asyncio.create_task(callback(parsed_data))
@@ -650,6 +665,51 @@ class SpotifyServer:
             raise ValueError("position must be greater than or equal to 0.")
         await self._send_command(_SeekRequest(position=position))
         return position
+
+    async def get_heart(self) -> bool:
+        """Get the current like/heart status for the active track.
+
+        Returns:
+            ``True`` if the track is liked/hearted, ``False`` otherwise.
+
+        Raises:
+            NotConnectedError: If not connected to Spicetify.
+            RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
+        """
+        response = await self._send_command(_GetHeartRequest())
+        return response.get("payload", {}).get("isHearted", False)
+
+    async def set_heart(self, status: bool) -> bool:
+        """Set the like/heart status for the current track.
+
+        Args:
+            status: ``True`` to like/heart the track, ``False`` to unlike.
+
+        Returns:
+            The heart status that was set.
+
+        Raises:
+            NotConnectedError: If not connected to Spicetify.
+            RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
+        """
+        await self._send_command(_SetHeartRequest(status=status))
+        return status
+
+    async def toggle_heart(self) -> bool:
+        """Toggle the like/heart status for the current track.
+
+        Returns:
+            The new heart status after toggling.
+
+        Raises:
+            NotConnectedError: If not connected to Spicetify.
+            RequestTimeoutError: If Spicetify doesn't respond in time.
+            UnauthorizedError: If the API key token is invalid or missing.
+        """
+        response = await self._send_command(_ToggleHeartRequest())
+        return response.get("payload", {}).get("isHearted", False)
 
     # --- Playback State Queries ---
 

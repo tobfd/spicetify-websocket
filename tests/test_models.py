@@ -10,7 +10,14 @@ from spicetify import (
     TrackImages,
     TrackInfo,
 )
-from spicetify.models import _convert_spotify_image_url, _PingRequest, _SetVolumeRequest
+from spicetify.models import (
+    _convert_spotify_image_url,
+    _GetHeartRequest,
+    _PingRequest,
+    _SetHeartRequest,
+    _SetVolumeRequest,
+    _ToggleHeartRequest,
+)
 
 
 def test_artist_info_url():
@@ -56,6 +63,7 @@ def test_track_info_from_payload_full():
         "duration": {"milliseconds": 200000},
         "isExplicit": True,
         "isLocal": False,
+        "isHearted": True,
         "artists": [{"name": "A1", "uri": "spotify:artist:1"}],
         "album": {
             "name": "Test Album",
@@ -77,6 +85,7 @@ def test_track_info_from_payload_full():
     assert track.is_local is False
     assert track.has_lyrics is True
     assert track.popularity == 90
+    assert track.is_hearted is True
     assert track.album is not None
     assert track.album.name == "Test Album"
     assert track.album.disc_count == 1
@@ -99,6 +108,7 @@ def test_track_info_from_payload_minimal():
     assert track.album is None
     assert track.has_lyrics is None
     assert track.popularity is None
+    assert track.is_hearted is None
     assert track.image_url is None
 
 
@@ -106,7 +116,6 @@ def test_playback_context_parsing():
     """Test parsing PlaybackContext payload."""
     payload = {
         "uri": "spotify:playlist:123",
-        "url": "context://spotify:playlist:123",
         "metadata": {
             "context_description": "My Favorite Playlist",
             "context_owner": "user_abc",
@@ -117,12 +126,26 @@ def test_playback_context_parsing():
     ctx = PlaybackContext.from_payload(payload)
     assert ctx is not None
     assert ctx.uri == "spotify:playlist:123"
+    assert ctx.url == "https://open.spotify.com/playlist/123"
+    assert ctx.owner_url == "https://open.spotify.com/user/user_abc"
     assert ctx.description == "My Favorite Playlist"
     assert ctx.owner == "user_abc"
     assert ctx.track_count == 15
     assert ctx.image_url == "https://i.scdn.co/image/playlist_cover"
 
     assert PlaybackContext.from_payload({}) is None
+
+
+def test_playback_context_url_edge_cases():
+    """Test PlaybackContext url and owner_url edge cases."""
+    ctx_no_owner = PlaybackContext(uri="spotify:playlist:123", owner=None)
+    assert ctx_no_owner.owner_url is None
+
+    ctx_invalid_uri = PlaybackContext(uri="invalid_uri")
+    assert ctx_invalid_uri.url is None
+
+    ctx_short_uri = PlaybackContext(uri="spotify:playlist")
+    assert ctx_short_uri.url is None
 
 
 def test_playback_restrictions_parsing():
@@ -140,7 +163,6 @@ def test_playback_restrictions_parsing():
     assert restr.can_seek is True
     assert restr.can_skip_next is False
 
-    # Defaults when empty
     default_restr = PlaybackRestrictions.from_payload({})
     assert default_restr.can_pause is True
 
@@ -151,6 +173,7 @@ def test_player_state_parsing_full():
         "isPlaying": True,
         "isMuted": False,
         "volume": 0.75,
+        "isHearted": True,
         "playerState": {
             "positionAsOfTimestamp": 10000,
             "duration": 200000,
@@ -185,12 +208,15 @@ def test_player_state_parsing_full():
     assert state.duration_seconds == 200.0
     assert state.repeat_mode == RepeatMode.CONTEXT
     assert state.item_index == 3
+    assert state.is_hearted is True
     assert state.track is not None
     assert state.track.title == "Active Song"
+    assert state.track.is_hearted is True
     assert state.context is not None
     assert state.context.description == "Rock Playlist"
     assert len(state.previous_tracks) == 1
     assert state.previous_tracks[0].title == "Prev Song"
+    assert state.previous_tracks[0].is_hearted is None
     assert len(state.next_tracks) == 1
     assert state.next_tracks[0].title == "Next Song"
 
@@ -199,13 +225,14 @@ def test_player_state_minimal_and_edge_cases():
     """Test parsing PlayerState when empty or minimal."""
     state_empty = PlayerState.from_payload({})
     assert state_empty.is_playing is False
+    assert state_empty.is_hearted is False
     assert state_empty.track is None
     assert state_empty.context is None
     assert state_empty.item_index is None
 
 
 def test_requests_serialization():
-    """Test serialization of request objects to Spicetify wire format."""
+    """Test serialization of internal request objects to Spicetify wire format."""
     set_vol = _SetVolumeRequest(level=0.5, token="test-token")
     vol_data = set_vol.model_dump(exclude_none=True)
     assert vol_data["requestName"] == "SetVolume"
@@ -218,3 +245,53 @@ def test_requests_serialization():
     assert ping_data["requestName"] == "Ping"
     assert ping_data["payload"] == {}
     assert ping_data["token"] == "auth-key"
+
+    get_heart_req = _GetHeartRequest(token="auth-key")
+    get_heart_data = get_heart_req.model_dump(exclude_none=True)
+    assert get_heart_data["requestName"] == "GetHeart"
+
+    set_heart_req = _SetHeartRequest(status=True, token="auth-key")
+    set_heart_data = set_heart_req.model_dump(exclude_none=True)
+    assert set_heart_data["requestName"] == "SetHeart"
+    assert set_heart_data["payload"]["status"] is True
+
+    toggle_heart_req = _ToggleHeartRequest(token="auth-key")
+    toggle_heart_data = toggle_heart_req.model_dump(exclude_none=True)
+    assert toggle_heart_data["requestName"] == "ToggleHeart"
+
+
+def test_models_additional_coverage():
+    """Test string representations and parse helper error fallbacks."""
+    from spicetify.models import (
+        _parse_optional_bool,
+        _parse_optional_float,
+        _parse_optional_int,
+    )
+
+    assert _parse_optional_bool("invalid") is None
+    assert _parse_optional_int("not_a_number") is None
+    assert _parse_optional_float("not_a_float") is None
+
+    state = PlayerState(is_playing=True, event_name="SongChanged", is_hearted=True)
+    assert "PlayerState(event=SongChanged" in str(state)
+    assert "is_hearted=True" in str(state)
+
+    state_no_track = PlayerState(is_playing=False)
+    assert "No track playing" in str(state_no_track)
+
+
+def test_track_info_str_edge_cases():
+    """Test TrackInfo __str__ when artists or album are missing."""
+    track = TrackInfo(
+        uri="spotify:track:123",
+        title="Solo Track",
+        duration_ms=1000,
+        artists=[],
+    )
+    assert "Solo Track by Unknown Artist from the album 'Unknown Album'" in str(track)
+
+
+def test_player_state_from_payload_invalid_data():
+    """Test PlayerState.from_payload with non-dict input."""
+    state = PlayerState.from_payload("invalid_payload")
+    assert state.is_playing is False

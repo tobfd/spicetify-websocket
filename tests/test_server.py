@@ -13,11 +13,25 @@ from spicetify import (
     PlayerState,
     RepeatMode,
     RequestTimeoutError,
+    SpicetifyError,
     SpotifyServer,
     TrackInfo,
     UnauthorizedError,
 )
 from spicetify.models import _PlayRequest
+
+
+def _make_mock_ws(*messages: str) -> MagicMock:
+    """Helper to create a mock WebSocket connection yielding raw JSON messages."""
+    ws_mock = MagicMock()
+    ws_mock.remote_address = ("127.0.0.1", 12345)
+
+    async def msg_generator():
+        for msg in messages:
+            yield msg
+
+    ws_mock.__aiter__ = lambda s: msg_generator()
+    return ws_mock
 
 
 @pytest.mark.asyncio
@@ -38,6 +52,7 @@ async def test_event_registration_and_dispatch():
     raw_payload = {
         "isPlaying": True,
         "volume": 0.8,
+        "isHearted": True,
         "playerState": {
             "positionAsOfTimestamp": 5000,
             "duration": 180000,
@@ -55,6 +70,7 @@ async def test_event_registration_and_dispatch():
 
     assert len(received_states) == 1
     assert received_states[0].event_name == "SongChanged"
+    assert received_states[0].is_hearted is True
     assert received_states[0].track is not None
     assert received_states[0].track.title == "Async Track"
 
@@ -99,8 +115,12 @@ async def test_convenience_decorators_registration():
     def h7(_):
         pass
 
-    @server.on_ping
+    @server.on_heart_changed
     def h8(_):
+        pass
+
+    @server.on_ping
+    def h9(_):
         pass
 
     assert "*" in server._event_callbacks
@@ -111,6 +131,7 @@ async def test_convenience_decorators_registration():
     assert "repeatchanged" in server._event_callbacks
     assert "shufflechanged" in server._event_callbacks
     assert "seekchanged" in server._event_callbacks
+    assert "heartchanged" in server._event_callbacks
     assert "ping" in server._event_callbacks
 
 
@@ -124,6 +145,9 @@ async def test_commands_without_connection_raise_error():
 
     with pytest.raises(NotConnectedError):
         await server.get_volume()
+
+    with pytest.raises(NotConnectedError):
+        await server.get_heart()
 
 
 @pytest.mark.asyncio
@@ -153,6 +177,10 @@ async def test_all_server_playback_methods_with_mock(monkeypatch):
             return {"payload": {"level": 0.8}}
         if name == "GetPlayPause":
             return {"payload": {"isPlaying": True}}
+        if name == "GetHeart":
+            return {"payload": {"isHearted": True}}
+        if name == "ToggleHeart":
+            return {"payload": {"isHearted": False}}
         if name == "GetPlayerState":
             return {
                 "payload": {
@@ -180,6 +208,15 @@ async def test_all_server_playback_methods_with_mock(monkeypatch):
     await server.set_repeat(RepeatMode.TRACK)
     await server.set_shuffle(True)
     await server.set_mute(False)
+
+    is_hearted = await server.get_heart()
+    assert is_hearted is True
+
+    set_h = await server.set_heart(True)
+    assert set_h is True
+
+    toggled_h = await server.toggle_heart()
+    assert toggled_h is False
 
     await server.play_uri("spotify:track:abc")
     await server.play_url("https://open.spotify.com/track/abc")
@@ -266,15 +303,7 @@ async def test_unauthorized_response_handling():
         "message": "Unauthorized: Invalid API Key token",
     }
 
-    msg = json.dumps(response_payload)
-    ws_mock = MagicMock()
-    ws_mock.remote_address = ("127.0.0.1", 12345)
-
-    async def msg_generator():
-        yield msg
-
-    ws_mock.__aiter__ = lambda s: msg_generator()
-
+    ws_mock = _make_mock_ws(json.dumps(response_payload))
     await server._handler(ws_mock)
 
     with pytest.raises(UnauthorizedError):
@@ -294,14 +323,7 @@ async def test_handler_token_filtering():
     msg_bad = json.dumps({"token": "wrong-token", "eventName": "SongChanged", "payload": {}})
     msg_good = json.dumps({"token": "correct-token", "eventName": "SongChanged", "payload": {}})
 
-    async def msg_generator():
-        yield msg_bad
-        yield msg_good
-
-    ws_mock = MagicMock()
-    ws_mock.remote_address = ("127.0.0.1", 12345)
-    ws_mock.__aiter__ = lambda s: msg_generator()
-
+    ws_mock = _make_mock_ws(msg_bad, msg_good)
     await server._handler(ws_mock)
     await asyncio.sleep(0)
 
@@ -337,6 +359,27 @@ async def test_server_lifecycle_and_timeouts():
 
 
 @pytest.mark.asyncio
+async def test_wait_for_connection_already_connected():
+    """Test wait_for_connection when websocket is already set."""
+    server = SpotifyServer()
+    server.websocket = MagicMock()
+    await server.wait_for_connection(timeout=0.1)
+
+
+@pytest.mark.asyncio
+async def test_start_server_with_cert_files(monkeypatch):
+    """Test start method when certfile and keyfile are provided."""
+    server = SpotifyServer(certfile="cert.pem", keyfile="key.pem")
+
+    mock_ssl_ctx = MagicMock()
+    monkeypatch.setattr(ssl, "SSLContext", MagicMock(return_value=mock_ssl_ctx))
+    monkeypatch.setattr("spicetify.server.serve", AsyncMock(return_value=MagicMock()))
+
+    await server.start()
+    assert server.server is not None
+
+
+@pytest.mark.asyncio
 async def test_server_dispatch_callback_exception():
     """Test exception handling during event dispatching for sync functions."""
     server = SpotifyServer()
@@ -346,3 +389,50 @@ async def test_server_dispatch_callback_exception():
         raise RuntimeError("Simulated error in user callback")
 
     await server._dispatch_event("SongChanged", {})
+
+
+@pytest.mark.asyncio
+async def test_server_dispatch_async_callback_exception():
+    """Test exception handling during event dispatching for async functions."""
+    server = SpotifyServer()
+
+    @server.on("SongChanged")
+    async def failing_async_callback(_):
+        raise RuntimeError("Simulated error in async user callback")
+
+    await server._dispatch_event("SongChanged", {})
+    await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_server_handler_invalid_json_logging():
+    """Test handling invalid JSON in WebSocket handler."""
+    server = SpotifyServer()
+
+    ws_mock = _make_mock_ws("INVALID_JSON_{")
+    await server._handler(ws_mock)
+
+
+@pytest.mark.asyncio
+async def test_generic_spicetify_error_handling():
+    """Test handling generic Spicetify error responses."""
+    server = SpotifyServer()
+    server.websocket = MagicMock()
+
+    req = _PlayRequest()
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+    server._pending_requests[req.requestId] = future
+
+    response_payload = {
+        "eventName": "Response",
+        "requestId": req.requestId,
+        "success": False,
+        "error": "Generic playback error",
+    }
+
+    ws_mock = _make_mock_ws(json.dumps(response_payload))
+    await server._handler(ws_mock)
+
+    with pytest.raises(SpicetifyError):
+        future.result()
