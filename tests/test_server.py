@@ -25,12 +25,7 @@ def _make_mock_ws(*messages: str) -> MagicMock:
     """Helper to create a mock WebSocket connection yielding raw JSON messages."""
     ws_mock = MagicMock()
     ws_mock.remote_address = ("127.0.0.1", 12345)
-
-    async def msg_generator():
-        for msg in messages:
-            yield msg
-
-    ws_mock.__aiter__ = lambda s: msg_generator()
+    ws_mock.__aiter__.return_value = list(messages)
     return ws_mock
 
 
@@ -159,6 +154,12 @@ async def test_parse_event_payloads():
 
     p_ping = SpotifyServer._parse_event_payload("Ping", {"timestamp": 1785633863000})
     assert isinstance(p_ping, datetime)
+
+    p_ping_str = SpotifyServer._parse_event_payload("Ping", {"timestamp": "1785633863000"})
+    assert isinstance(p_ping_str, datetime)
+
+    p_ping_invalid = SpotifyServer._parse_event_payload("Ping", {"timestamp": "invalid"})
+    assert isinstance(p_ping_invalid, datetime)
 
 
 @pytest.mark.asyncio
