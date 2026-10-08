@@ -1,15 +1,17 @@
 import asyncio
+import hmac
 import inspect
 import json
 import logging
 import ssl
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from typing import Any
 
 from typing_extensions import Self
 from websockets.asyncio.server import Server, ServerConnection, serve
+from websockets.exceptions import ConnectionClosed
 
 from .exceptions import (
     NotConnectedError,
@@ -46,6 +48,12 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+#: Origin sent by the Spotify desktop client (Spicetify runs inside this page).
+SPOTIFY_DESKTOP_ORIGIN = "https://xpui.app.spotify.com"
+
+# WebSocket close code used when a client fails to authenticate in time (RFC 6455: 1008).
+_CLOSE_POLICY_VIOLATION = 1008
+
 
 class SpotifyServer:
     """WebSocket server for controlling Spotify via Spicetify.
@@ -53,6 +61,14 @@ class SpotifyServer:
     The server starts a WebSocket listener, waits for a Spicetify client to
     connect, and exposes convenience methods for playback control and state
     queries.
+
+    A connection only becomes the *active* connection after it has sent its
+    first valid message (the extension sends ``InitialState`` right after
+    connecting). If an ``api_key`` is configured, that message must carry the
+    matching token. Until then the connection receives no commands and never
+    sees the API key. Connections that stay silent or unauthorized for
+    ``auth_timeout`` seconds are closed. When a new client authenticates, it
+    replaces the previous active connection, which is then closed.
 
     Note:
         This class is asynchronous and is intended to be used as an async
@@ -65,7 +81,9 @@ class SpotifyServer:
         ssl_context: Custom SSL context for secure WebSocket connections.
         certfile: Path to SSL certificate file for WSS.
         keyfile: Path to SSL private key file for WSS.
-        websocket: Active WebSocket connection, if any.
+        allowed_origins: Optional list of accepted ``Origin`` header values.
+        auth_timeout: Seconds a new connection may take to authenticate.
+        websocket: Active (authenticated) WebSocket connection, if any.
         server: Running WebSocket server instance, if any.
     """
 
@@ -77,6 +95,8 @@ class SpotifyServer:
         ssl_context: ssl.SSLContext | None = None,
         certfile: str | None = None,
         keyfile: str | None = None,
+        allowed_origins: Sequence[str | None] | None = None,
+        auth_timeout: float = 10.0,
     ) -> None:
         self.host = host
         self.port = port
@@ -84,13 +104,22 @@ class SpotifyServer:
         self.ssl_context = ssl_context
         self.certfile = certfile
         self.keyfile = keyfile
+        self.allowed_origins = list(allowed_origins) if allowed_origins is not None else None
+        self.auth_timeout = auth_timeout
 
         self.websocket: ServerConnection | None = None
         self.server: Server | None = None
         self._pending_requests: dict[str, asyncio.Future] = {}
         self._connected_event = asyncio.Event()
         self._event_callbacks: dict[str, list[Callable]] = {}
+        self._connect_callbacks: list[Callable[[], Any]] = []
+        self._disconnect_callbacks: list[Callable[[], Any]] = []
         self._background_tasks: set[asyncio.Task[Any]] = set()
+
+    @property
+    def is_connected(self) -> bool:
+        """Return ``True`` if an authenticated Spicetify client is connected."""
+        return self.websocket is not None
 
     # --- Event Registration ---
 
@@ -233,7 +262,68 @@ class SpotifyServer:
         """
         return self.on("Ping")(func)
 
+    # --- Connection Lifecycle Hooks ---
+
+    def on_connect(self, func: Callable[[], Any]) -> Callable[[], Any]:
+        """Register a callback fired when a Spicetify client becomes the active connection.
+
+        The callback takes no arguments and may be a regular function or a coroutine.
+
+        Args:
+            func: Callback function.
+
+        Returns:
+            The original callback, unchanged.
+        """
+        self._connect_callbacks.append(func)
+        return func
+
+    def on_disconnect(self, func: Callable[[], Any]) -> Callable[[], Any]:
+        """Register a callback fired when the active Spicetify connection is lost.
+
+        The callback takes no arguments and may be a regular function or a coroutine.
+        It is not fired when a connection is replaced by a newer one, because the
+        client stays connected in that case.
+
+        Args:
+            func: Callback function.
+
+        Returns:
+            The original callback, unchanged.
+        """
+        self._disconnect_callbacks.append(func)
+        return func
+
     # --- Event Dispatch ---
+
+    def _run_callback(self, callback: Callable, args: tuple[Any, ...], label: str) -> None:
+        """Run a user callback, scheduling coroutines as background tasks.
+
+        Exceptions raised by the callback are logged and never propagate.
+
+        Args:
+            callback: Sync or async callable to execute.
+            args: Positional arguments passed to the callback.
+            label: Human-readable name used in log messages.
+        """
+        # noinspection broad-exception
+        try:
+            if inspect.iscoroutinefunction(callback):
+
+                async def _run_async() -> None:
+                    # noinspection broad-exception
+                    try:
+                        await callback(*args)
+                    except Exception:
+                        logger.exception("Error executing async callback for %s", label)
+
+                task = asyncio.create_task(_run_async())
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+            else:
+                callback(*args)
+        except Exception:
+            logger.exception("Error executing callback for %s", label)
 
     async def _dispatch_event(self, event_name: str, payload: dict[str, Any]) -> None:
         """Dispatch an incoming event to all registered callbacks.
@@ -255,29 +345,15 @@ class SpotifyServer:
         if not all_callbacks:
             return
 
-        parsed_data = self._parse_event_payload(event_name, payload)
+        # noinspection broad-exception
+        try:
+            parsed_data = self._parse_event_payload(event_name, payload)
+        except Exception:
+            logger.exception("Could not parse payload of event %s", event_name)
+            return
 
         for callback in all_callbacks:
-            # noinspection broad-exception
-            try:
-                if inspect.iscoroutinefunction(callback):
-
-                    async def _run_async(cb: Callable, data: Any) -> None:
-                        # noinspection broad-exception
-                        try:
-                            await cb(data)
-                        except Exception:
-                            logger.exception(
-                                "Error executing async event callback for %s", event_name
-                            )
-
-                    task = asyncio.create_task(_run_async(callback, parsed_data))
-                    self._background_tasks.add(task)
-                    task.add_done_callback(self._background_tasks.discard)
-                else:
-                    callback(parsed_data)
-            except Exception:
-                logger.exception("Error executing the event callback for %s", event_name)
+            self._run_callback(callback, (parsed_data,), f"event {event_name}")
 
     @staticmethod
     def _parse_event_payload(event_name: str, payload: dict[str, Any]) -> Any:
@@ -292,7 +368,7 @@ class SpotifyServer:
             object for all other events.
         """
         if event_name.lower() == "ping":
-            ts = payload.get("timestamp")
+            ts = payload.get("timestamp") if isinstance(payload, dict) else None
             if isinstance(ts, str):
                 try:
                     ts = float(ts)
@@ -322,7 +398,7 @@ class SpotifyServer:
     # --- Connection Management ---
 
     async def wait_for_connection(self, timeout: float | None = None) -> None:
-        """Wait for a Spicetify client connection.
+        """Wait for an authenticated Spicetify client connection.
 
         Args:
             timeout: Maximum time to wait in seconds. If ``None``, waits indefinitely.
@@ -342,6 +418,88 @@ class SpotifyServer:
                 logger.warning("Connection timeout after %f seconds", timeout)
                 raise NotConnectedError("Timeout: Spicetify did not connect in time.") from None
 
+    def _is_authorized(self, data: dict[str, Any]) -> bool:
+        """Check the token of an incoming message against the configured API key.
+
+        Uses a constant-time comparison to avoid leaking the key through timing.
+
+        Args:
+            data: Decoded incoming message.
+
+        Returns:
+            ``True`` if no API key is configured or the token matches.
+        """
+        if self.api_key is None:
+            return True
+        token = data.get("token")
+        if not isinstance(token, str):
+            return False
+        return hmac.compare_digest(token.encode(), self.api_key.encode())
+
+    def _fail_pending_requests(self, reason: str) -> None:
+        """Fail every pending request immediately instead of letting it time out.
+
+        Args:
+            reason: Message for the raised :class:`NotConnectedError`.
+        """
+        pending = list(self._pending_requests.values())
+        self._pending_requests.clear()
+        for future in pending:
+            if not future.done():
+                future.set_exception(NotConnectedError(reason))
+
+    async def _close_quietly(self, websocket: ServerConnection, code: int, reason: str) -> None:
+        """Close a connection and swallow any error raised while doing so."""
+        # noinspection broad-exception
+        try:
+            await websocket.close(code=code, reason=reason)
+        except Exception:
+            logger.debug("Error while closing connection", exc_info=True)
+
+    def _spawn(self, coro: Any) -> None:
+        """Run a coroutine in the background and keep a reference to its task."""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    def _activate_connection(self, websocket: ServerConnection) -> None:
+        """Make an authenticated connection the active one.
+
+        A previously active connection is replaced and closed. Requests that were
+        sent over it can never be answered, so they fail right away.
+
+        Args:
+            websocket: The newly authenticated connection.
+        """
+        previous = self.websocket
+        self.websocket = websocket
+        self._connected_event.set()
+
+        if previous is not None and previous is not websocket:
+            logger.info("A new Spicetify client connected; replacing the previous connection.")
+            self._fail_pending_requests("The connection was replaced by a new Spicetify client.")
+            self._spawn(self._close_quietly(previous, 1000, "Replaced by a new connection"))
+            return
+
+        logger.info("Spicetify client connected from %s.", _remote_host(websocket))
+        for callback in self._connect_callbacks:
+            self._run_callback(callback, (), "on_connect")
+
+    def _deactivate_connection(self, websocket: ServerConnection) -> None:
+        """Clear the active connection if (and only if) it is the given one.
+
+        Args:
+            websocket: The connection that has been closed.
+        """
+        if self.websocket is not websocket:
+            return
+        self.websocket = None
+        self._connected_event.clear()
+        self._fail_pending_requests("The connection to Spicetify was lost.")
+        logger.info("Spicetify client disconnected.")
+        for callback in self._disconnect_callbacks:
+            self._run_callback(callback, (), "on_disconnect")
+
     # --- Server Lifecycle ---
 
     async def _send_command(self, request: _BaseRequest, timeout: float = 5.0) -> dict:
@@ -355,12 +513,14 @@ class SpotifyServer:
             The response data from Spicetify.
 
         Raises:
-            NotConnectedError: If no active WebSocket connection exists.
+            NotConnectedError: If no active connection exists or it is lost
+                before the response arrives.
             RequestTimeoutError: If the response doesn't arrive within timeout.
             UnauthorizedError: If the API key token is invalid or missing.
             SpicetifyError: If Spicetify responds with an error status.
         """
-        if not self.websocket:
+        websocket = self.websocket
+        if websocket is None:
             raise NotConnectedError()
 
         if self.api_key is not None:
@@ -368,12 +528,15 @@ class SpotifyServer:
 
         loop = asyncio.get_running_loop()
         future = loop.create_future()
-
         self._pending_requests[request.requestId] = future
 
         json_data = request.model_dump_json(exclude_none=True)
-        logger.debug("Send: %s", json_data)
-        await self.websocket.send(json_data)
+        logger.debug("Send request: %s (%s)", request.requestName, request.requestId)
+        try:
+            await websocket.send(json_data)
+        except ConnectionClosed as err:
+            self._pending_requests.pop(request.requestId, None)
+            raise NotConnectedError("The connection to Spicetify was lost.") from err
 
         try:
             return await asyncio.wait_for(future, timeout=timeout)
@@ -388,100 +551,119 @@ class SpotifyServer:
             ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             ssl_ctx.load_cert_chain(certfile=self.certfile, keyfile=self.keyfile)
 
-        self.server = await serve(self._handler, self.host, self.port, ssl=ssl_ctx)
+        self.server = await serve(
+            self._handler,
+            self.host,
+            self.port,
+            ssl=ssl_ctx,
+            origins=self.allowed_origins,
+        )
         scheme = "wss" if ssl_ctx else "ws"
         logger.info("Server started on %s://%s:%d", scheme, self.host, self.port)
+        if self.api_key is None:
+            logger.info("No API key configured; any client that can reach the server can connect.")
 
     async def stop(self) -> None:
         """Stop the WebSocket server and close any active connection."""
-        if self.websocket:
-            await self.websocket.close()
-            self.websocket = None
+        websocket = self.websocket
+        if websocket is not None:
+            self._deactivate_connection(websocket)
+            await self._close_quietly(websocket, 1001, "Server shutting down")
             logger.info("WebSocket connection closed.")
         if self.server:
             self.server.close()
             await self.server.wait_closed()
+            self.server = None
             logger.info("Server has stopped.")
 
     # --- WebSocket Message Handling ---
 
+    async def _enforce_auth_timeout(self, websocket: ServerConnection) -> None:
+        """Close a connection that did not authenticate within ``auth_timeout``."""
+        await asyncio.sleep(self.auth_timeout)
+        logger.warning(
+            "Closing connection from %s: no valid message within %.0f s.",
+            _remote_host(websocket),
+            self.auth_timeout,
+        )
+        await self._close_quietly(websocket, _CLOSE_POLICY_VIOLATION, "Unauthorized")
+
     async def _handler(self, websocket: ServerConnection) -> None:
-        """Handle incoming WebSocket messages and resolve pending requests.
+        """Handle one client connection from handshake to close.
 
         Args:
             websocket: The WebSocket connection from a client.
         """
-        self.websocket = websocket
-        self._connected_event.set()
-        logger.info("Connection established with %s.", websocket.remote_address[0])
+        logger.debug("Incoming connection from %s.", _remote_host(websocket))
+        authenticated = False
+        warned_unauthorized = False
+        auth_timer = asyncio.create_task(self._enforce_auth_timeout(websocket))
         try:
             async for message in websocket:
-                try:
-                    data = json.loads(message)
+                data = _decode_message(message)
+                if data is None:
+                    continue
 
-                    event_name = data.get("eventName")
-                    request_id = data.get("requestId")
-                    incoming_token = data.get("token")
-
-                    if self.api_key is not None and incoming_token != self.api_key:
+                if not self._is_authorized(data):
+                    if not warned_unauthorized:
                         logger.warning(
-                            "Dropped incoming message due to invalid or missing API key token."
+                            "Dropped message from %s: invalid or missing API key token.",
+                            _remote_host(websocket),
                         )
-                        continue
+                        warned_unauthorized = True
+                    continue
 
-                    if (
-                        event_name == "Response"
-                        and request_id
-                        and request_id in self._pending_requests
-                    ):
-                        future = self._pending_requests.pop(request_id)
-                        if not future.done():
-                            if data.get("success") is False:
-                                raw_msg = (
-                                    data.get("error")
-                                    or data.get("message")
-                                    or "Unknown Spicetify error"
-                                )
-                                msg = str(raw_msg)
+                if not authenticated:
+                    authenticated = True
+                    auth_timer.cancel()
+                    self._activate_connection(websocket)
 
-                                is_auth_error = any(
-                                    term in msg.lower()
-                                    for term in (
-                                        "unauthorized",
-                                        "token",
-                                        "api key",
-                                        "forbidden",
-                                        "denied",
-                                    )
-                                )
+                if self.websocket is not websocket:
+                    # This connection has been replaced by a newer one.
+                    continue
 
-                                if is_auth_error:
-                                    future.set_exception(
-                                        UnauthorizedError(f"Request failed: {msg}")
-                                    )
-                                else:
-                                    future.set_exception(SpicetifyError(f"Request failed: {msg}"))
-                            else:
-                                future.set_result(data)
-                            logger.debug(
-                                "Received response for requestId: %s, Data: %s",
-                                request_id,
-                                data,
-                            )
-                        continue
-
-                    if event_name:
-                        logger.debug("Event received: %s: %s", event_name, data.get("payload"))
-                        await self._dispatch_event(event_name, data.get("payload", {}))
-
-                    else:
-                        logger.debug("Received message without eventName or requestId: %s", data)
-                except json.JSONDecodeError:
-                    logger.error("JSON parsing error: %s", message)
+                # noinspection broad-exception
+                try:
+                    await self._process_message(data)
+                except Exception:
+                    logger.exception("Error while processing message from Spicetify")
+        except ConnectionClosed as err:
+            logger.info("Connection from %s closed unexpectedly: %s", _remote_host(websocket), err)
         finally:
-            self.websocket = None
-            self._connected_event.clear()
-            logger.info("Connection lost.")
+            auth_timer.cancel()
+            self._deactivate_connection(websocket)
+
+    async def _process_message(self, data: dict[str, Any]) -> None:
+        """Route an authorized message to pending requests or event callbacks.
+
+        Args:
+            data: Decoded incoming message.
+        """
+        event_name = data.get("eventName")
+        request_id = data.get("requestId")
+
+        if event_name == "Response" and request_id:
+            future = self._pending_requests.pop(request_id, None)
+            if future is None or future.done():
+                logger.debug("Ignoring response for unknown request %s", request_id)
+                return
+            if data.get("success") is False:
+                msg = str(data.get("error") or data.get("message") or "Unknown Spicetify error")
+                if _looks_like_auth_error(msg):
+                    future.set_exception(UnauthorizedError(f"Request failed: {msg}"))
+                else:
+                    future.set_exception(SpicetifyError(f"Request failed: {msg}"))
+            else:
+                future.set_result(data)
+            logger.debug("Received response for requestId: %s", request_id)
+            return
+
+        if isinstance(event_name, str) and event_name:
+            payload = data.get("payload")
+            logger.debug("Event received: %s", event_name)
+            await self._dispatch_event(event_name, payload if isinstance(payload, dict) else {})
+        else:
+            logger.debug("Received message without eventName: %s", data)
 
     # --- Active Ping & Commands ---
 
@@ -784,3 +966,40 @@ class SpotifyServer:
         """
         response = await self._send_command(_GetCurrentTrackRequest())
         return TrackInfo.from_payload(response.get("payload", {}))
+
+
+# --- Module Helpers ---
+
+
+def _decode_message(message: str | bytes) -> dict[str, Any] | None:
+    """Decode a raw WebSocket message into a JSON object.
+
+    Args:
+        message: Raw text or binary frame.
+
+    Returns:
+        The decoded object, or ``None`` if the message is not a JSON object.
+    """
+    try:
+        data = json.loads(message)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.warning("Dropped message that is not valid JSON.")
+        return None
+    if not isinstance(data, dict):
+        logger.warning("Dropped JSON message that is not an object.")
+        return None
+    return data
+
+
+def _looks_like_auth_error(message: str) -> bool:
+    """Guess whether a Spicetify error message is about authorization."""
+    lowered = message.lower()
+    return any(term in lowered for term in ("unauthorized", "api key", "forbidden"))
+
+
+def _remote_host(websocket: ServerConnection) -> str:
+    """Return the remote host of a connection for log messages."""
+    address = getattr(websocket, "remote_address", None)
+    if isinstance(address, (tuple, list)) and address:
+        return str(address[0])
+    return "unknown"
