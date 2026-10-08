@@ -12,19 +12,22 @@ def _convert_spotify_image_url(url: str | None) -> str | None:
     """Convert a Spotify image URL or raw image hash to a standard HTTP URL.
 
     Args:
-        url: The Spotify image URL or hash to convert.
+        url: The Spotify image URL (``spotify:image:<id>``), raw image ID or HTTP(S) URL.
 
     Returns:
-        The converted HTTP URL, or None if invalid or empty.
+        The converted HTTP URL, or None if empty or not a CDN image (for example the
+        ``spotify:localfileimage:...`` URIs used for local files).
     """
-    if not url:
+    if not url or not isinstance(url, str):
         return None
+    if url.startswith(("http://", "https://")):
+        return url
     if url.startswith("spotify:image:"):
-        image_id = url.replace("spotify:image:", "")
-        return f"https://i.scdn.co/image/{image_id}"
-    if not url.startswith("http://") and not url.startswith("https://"):
+        image_id = url.removeprefix("spotify:image:")
+        return f"https://i.scdn.co/image/{image_id}" if image_id else None
+    if ":" not in url and "/" not in url:
         return f"https://i.scdn.co/image/{url}"
-    return url
+    return None
 
 
 def _parse_optional_bool(value: Any) -> bool | None:
@@ -261,8 +264,10 @@ class AlbumInfo(BaseModel):
         name: Album name.
         uri: Spotify URI of the album.
         images: List of artwork image URLs.
-        release_date: Album release date (e.g. '2024-05-17T00:00:00Z', if available).
-        disc_count: Total disc count on album (if available).
+        release_date: Album release date, if available. Current Spotify clients
+            usually do not provide it, so expect ``None``.
+        disc_count: Total disc count on album, if available. Current Spotify clients
+            usually do not provide it, so expect ``None``.
     """
 
     name: str
@@ -366,10 +371,10 @@ class TrackInfo(BaseModel):
         raw_artists = track_data.get("artists", [])
         artists = [
             ArtistInfo(
-                name=artist.get("name", ""),
-                uri=artist.get("uri", ""),
+                name=str(artist.get("name") or ""),
+                uri=str(artist.get("uri") or ""),
             )
-            for artist in raw_artists
+            for artist in (raw_artists if isinstance(raw_artists, list) else [])
             if isinstance(artist, dict)
         ]
 
@@ -430,9 +435,12 @@ class TrackInfo(BaseModel):
             is_hearted = _parse_optional_bool(track_data.get("is_hearted"))
         if is_hearted is None:
             is_hearted = _parse_optional_bool(meta.get("isHearted"))
+        if is_hearted is None:
+            # Current Spotify clients expose the liked state via collection metadata.
+            is_hearted = _parse_optional_bool(meta.get("collection.in_collection"))
 
         return TrackInfo(
-            uri=track_data.get("uri", ""),
+            uri=str(track_data.get("uri") or ""),
             title=title,
             duration_ms=duration_ms,
             artists=artists,
