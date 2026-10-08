@@ -103,3 +103,34 @@ All state-related event handlers receive a comprehensive [`PlayerState`](https:/
 | `SeekChanged` | `@server.on_seek_changed` | `PlayerState` | Fired when timeline position is manually changed. |
 | `HeartChanged` | `@server.on_heart_changed` | `PlayerState` | Fired when the active track's heart/like status changes. |
 | `Ping` | `@server.on_ping` | `datetime` (UTC) | Fired on periodic heartbeat pings from Spicetify. |
+
+### Connection Lifecycle Hooks
+
+| Decorator | Callback Signature | Description |
+| :--- | :--- | :--- |
+| `@server.on_connect` | `() -> None` | Fired when a Spicetify client becomes the active connection. |
+| `@server.on_disconnect` | `() -> None` | Fired when the active connection is lost (not when it is replaced by a newer client). |
+
+`server.is_connected` tells you at any time whether an authenticated client is connected.
+
+---
+
+## 🔐 Connection & Security Model
+
+- **Authentication on the first message:** A new connection becomes active only after it sends its first valid message (the extension sends `InitialState` right after connecting). With an `api_key`, that message must carry the matching token. Until then the connection receives no commands and never sees the key.
+- **Silent clients are closed:** Connections that do not authenticate within `auth_timeout` seconds (default `10`) are closed with code `1008`.
+- **One active client:** When a new client authenticates, it replaces the previous connection, which is then closed. Pending requests on the old connection fail immediately with `NotConnectedError`.
+- **Origin allowlist (recommended):** Pass `allowed_origins=[SPOTIFY_DESKTOP_ORIGIN]` to reject browser pages from other sites (cross-site WebSocket hijacking). Clients that send no `Origin` header (for example Python scripts) are rejected too; add `None` to the list to allow them.
+- **Use WSS outside localhost:** The API key travels inside the messages, so use `wss://` (see the guides) whenever the server is reachable from your network.
+
+```python
+from spicetify import SPOTIFY_DESKTOP_ORIGIN, SpotifyServer
+
+server = SpotifyServer(
+    host="0.0.0.0",
+    api_key="a-long-random-secret",
+    allowed_origins=[SPOTIFY_DESKTOP_ORIGIN],
+    certfile="cert.pem",
+    keyfile="key.pem",
+)
+```

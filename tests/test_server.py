@@ -290,8 +290,6 @@ async def test_api_key_token_injection():
 async def test_unauthorized_response_handling():
     """Test that unauthorized response sets UnauthorizedError exception."""
     server = SpotifyServer()
-    server.websocket = MagicMock()
-
     req = _PlayRequest()
     loop = asyncio.get_running_loop()
     future = loop.create_future()
@@ -418,8 +416,6 @@ async def test_server_handler_invalid_json_logging():
 async def test_generic_spicetify_error_handling():
     """Test handling generic Spicetify error responses."""
     server = SpotifyServer()
-    server.websocket = MagicMock()
-
     req = _PlayRequest()
     loop = asyncio.get_running_loop()
     future = loop.create_future()
@@ -435,5 +431,6 @@ async def test_generic_spicetify_error_handling():
     ws_mock = _make_mock_ws(json.dumps(response_payload))
     await server._handler(ws_mock)
 
-    with pytest.raises(SpicetifyError):
+    with pytest.raises(SpicetifyError) as exc_info:
         future.result()
+    assert not isinstance(exc_info.value, NotConnectedError)
