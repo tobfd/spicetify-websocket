@@ -1,0 +1,438 @@
+{
+  "timestamp": 1791499175054,
+  "context": {
+    "uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+    "url": "context://spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+    "metadata": {
+      "format_list_type": "identity",
+      "context_owner": "spotify",
+      "playlist_number_of_tracks": "1",
+      "playlist_number_of_episodes": "0",
+      "image_url": "",
+      "mixer_enabled": "true",
+      "enhanced_context": "false",
+      "context_description": "",
+      "initiated_from_list_play_esperanto": "true",
+      "ignore_enhance_lens": "true",
+      "player.arch": "3"
+    }
+  },
+  "index": {
+    "pageURI": null,
+    "pageIndex": null,
+    "itemIndex": null
+  },
+  "item": {
+    "type": "track",
+    "uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+    "name": "Love You Like A Love Song",
+    "mediaType": "audio",
+    "duration": {
+      "milliseconds": 188453
+    },
+    "album": {
+      "type": "album",
+      "uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+      "name": "When The Sun Goes Down",
+      "images": [
+        {
+          "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+          "label": "standard"
+        },
+        {
+          "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+          "label": "small"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "large"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "xlarge"
+        }
+      ]
+    },
+    "artists": [
+      {
+        "type": "artist",
+        "uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+        "name": "Selena Gomez & The Scene"
+      }
+    ],
+    "isLocal": false,
+    "isExplicit": false,
+    "is19PlusOnly": false,
+    "hasAssociatedVideo": false,
+    "provider": "context",
+    "metadata": {
+      "album_artist_name": "Selena Gomez & The Scene",
+      "track_player": "audio",
+      "collection.in_collection": "true",
+      "context_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+      "screen_recording_enabled": "true",
+      "media.type": "audio",
+      "album_track_number": "1",
+      "collection.can_add": "true",
+      "image_large_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+      "album_disc_number": "1",
+      "title": "Love You Like A Love Song",
+      "album_title": "When The Sun Goes Down",
+      "collection.is_banned": "false",
+      "album_artist": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+      "provider": "context",
+      "artist_name": "Selena Gomez & The Scene",
+      "has_lyrics": "true",
+      "requested_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+      "collection.can_ban": "true",
+      "artist_uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+      "image_xlarge_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+      "image_small_url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+      "position": "2138",
+      "is_backgroundable": "true",
+      "duration": "188453",
+      "popularity": "86",
+      "album_uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+      "image_url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+      "playback_speed": "1.000000"
+    },
+    "images": [
+      {
+        "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+        "label": "standard"
+      },
+      {
+        "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+        "label": "small"
+      },
+      {
+        "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+        "label": "large"
+      },
+      {
+        "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+        "label": "xlarge"
+      }
+    ]
+  },
+  "shuffle": false,
+  "smartShuffle": false,
+  "repeat": 2,
+  "speed": 1,
+  "speedEsperanto": 1,
+  "positionAsOfTimestamp": 2138,
+  "duration": 188453,
+  "hasContext": true,
+  "isPaused": false,
+  "isBuffering": false,
+  "restrictions": {
+    "canPause": true,
+    "canResume": false,
+    "canSeek": true,
+    "canSkipPrevious": true,
+    "canSkipNext": true,
+    "canToggleRepeatContext": true,
+    "canToggleRepeatTrack": true,
+    "canToggleShuffle": true,
+    "canToggleSmartShuffle": true,
+    "disallowPausingReasons": [],
+    "disallowResumingReasons": [
+      "not_paused"
+    ],
+    "disallowSeekingReasons": [],
+    "disallowSkippingPreviousReasons": [],
+    "disallowSkippingNextReasons": [],
+    "disallowTogglingRepeatContextReasons": [],
+    "disallowTogglingRepeatTrackReasons": [],
+    "disallowTogglingShuffleReasons": [],
+    "disallowTransferringPlaybackReasons": [],
+    "disallowAddToQueueReasons": [],
+    "disallowSetQueueReasons": [],
+    "disallowSettingPlaybackSpeedReasons": [
+      "unknown"
+    ],
+    "disallowSignals": {}
+  },
+  "previousItems": [
+    {
+      "type": "track",
+      "uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+      "name": "Love You Like A Love Song",
+      "mediaType": "audio",
+      "duration": {
+        "milliseconds": 188453
+      },
+      "album": {
+        "type": "album",
+        "uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+        "name": "When The Sun Goes Down",
+        "images": [
+          {
+            "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+            "label": "standard"
+          },
+          {
+            "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+            "label": "small"
+          },
+          {
+            "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+            "label": "large"
+          },
+          {
+            "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+            "label": "xlarge"
+          }
+        ]
+      },
+      "artists": [
+        {
+          "type": "artist",
+          "uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+          "name": "Selena Gomez & The Scene"
+        }
+      ],
+      "isLocal": false,
+      "isExplicit": false,
+      "is19PlusOnly": false,
+      "hasAssociatedVideo": false,
+      "provider": "context",
+      "metadata": {
+        "image_xlarge_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+        "context_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+        "is_backgroundable": "true",
+        "collection.can_add": "true",
+        "artist_uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+        "popularity": "86",
+        "requested_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+        "album_uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+        "has_lyrics": "true",
+        "album_track_number": "1",
+        "title": "Love You Like A Love Song",
+        "image_large_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+        "image_small_url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+        "album_title": "When The Sun Goes Down",
+        "album_artist": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+        "duration": "188453",
+        "screen_recording_enabled": "true",
+        "image_url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+        "collection.can_ban": "true",
+        "album_disc_number": "1",
+        "collection.in_collection": "true",
+        "hidden_in_queue": "true",
+        "collection.is_banned": "false",
+        "artist_name": "Selena Gomez & The Scene",
+        "album_artist_name": "Selena Gomez & The Scene"
+      },
+      "images": [
+        {
+          "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+          "label": "standard"
+        },
+        {
+          "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+          "label": "small"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "large"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "xlarge"
+        }
+      ]
+    }
+  ],
+  "nextItems": [
+    {
+      "type": "track",
+      "uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+      "name": "Love You Like A Love Song",
+      "mediaType": "audio",
+      "duration": {
+        "milliseconds": 188453
+      },
+      "album": {
+        "type": "album",
+        "uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+        "name": "When The Sun Goes Down",
+        "images": [
+          {
+            "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+            "label": "standard"
+          },
+          {
+            "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+            "label": "small"
+          },
+          {
+            "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+            "label": "large"
+          },
+          {
+            "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+            "label": "xlarge"
+          }
+        ]
+      },
+      "artists": [
+        {
+          "type": "artist",
+          "uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+          "name": "Selena Gomez & The Scene"
+        }
+      ],
+      "isLocal": false,
+      "isExplicit": false,
+      "is19PlusOnly": false,
+      "hasAssociatedVideo": false,
+      "provider": "context",
+      "metadata": {
+        "hidden_in_queue": "true",
+        "is_backgroundable": "true",
+        "collection.can_ban": "true",
+        "album_artist_name": "Selena Gomez & The Scene",
+        "screen_recording_enabled": "true",
+        "collection.is_banned": "false",
+        "album_artist": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+        "album_disc_number": "1",
+        "context_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+        "album_track_number": "1",
+        "provider": "context",
+        "image_url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+        "artist_name": "Selena Gomez & The Scene",
+        "album_uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+        "title": "Love You Like A Love Song",
+        "collection.can_add": "true",
+        "popularity": "86",
+        "has_lyrics": "true",
+        "album_title": "When The Sun Goes Down",
+        "duration": "188453",
+        "image_large_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+        "image_small_url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+        "requested_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+        "image_xlarge_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+        "collection.in_collection": "true",
+        "artist_uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO"
+      },
+      "images": [
+        {
+          "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+          "label": "standard"
+        },
+        {
+          "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+          "label": "small"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "large"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "xlarge"
+        }
+      ]
+    },
+    {
+      "type": "track",
+      "uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+      "name": "Love You Like A Love Song",
+      "mediaType": "audio",
+      "duration": {
+        "milliseconds": 188453
+      },
+      "album": {
+        "type": "album",
+        "uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+        "name": "When The Sun Goes Down",
+        "images": [
+          {
+            "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+            "label": "standard"
+          },
+          {
+            "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+            "label": "small"
+          },
+          {
+            "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+            "label": "large"
+          },
+          {
+            "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+            "label": "xlarge"
+          }
+        ]
+      },
+      "artists": [
+        {
+          "type": "artist",
+          "uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+          "name": "Selena Gomez & The Scene"
+        }
+      ],
+      "isLocal": false,
+      "isExplicit": false,
+      "is19PlusOnly": false,
+      "hasAssociatedVideo": false,
+      "provider": "context",
+      "metadata": {
+        "album_title": "When The Sun Goes Down",
+        "image_url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+        "artist_name": "Selena Gomez & The Scene",
+        "provider": "context",
+        "album_artist": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+        "collection.in_collection": "true",
+        "album_artist_name": "Selena Gomez & The Scene",
+        "hidden_in_queue": "true",
+        "collection.can_ban": "true",
+        "collection.is_banned": "false",
+        "title": "Love You Like A Love Song",
+        "requested_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+        "album_disc_number": "1",
+        "has_lyrics": "true",
+        "context_uri": "spotify:track:0laYHRpNTS6i8FXdupHkJ4",
+        "is_backgroundable": "true",
+        "image_large_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+        "album_uri": "spotify:album:49yHvRh1cOfLcEKukEP7Ox",
+        "screen_recording_enabled": "true",
+        "popularity": "86",
+        "album_track_number": "1",
+        "artist_uri": "spotify:artist:6dJeKm76NjfXBNTpHmOhfO",
+        "duration": "188453",
+        "image_small_url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+        "collection.can_add": "true",
+        "image_xlarge_url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db"
+      },
+      "images": [
+        {
+          "url": "spotify:image:ab67616d00001e021c8193de8d62b2ffa49a09db",
+          "label": "standard"
+        },
+        {
+          "url": "spotify:image:ab67616d000048511c8193de8d62b2ffa49a09db",
+          "label": "small"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "large"
+        },
+        {
+          "url": "spotify:image:ab67616d0000b2731c8193de8d62b2ffa49a09db",
+          "label": "xlarge"
+        }
+      ]
+    }
+  ],
+  "playbackQuality": {
+    "bitrateLevel": 3,
+    "strategy": 4,
+    "targetBitrateLevel": 3,
+    "targetBitrateAvailable": true,
+    "losslessStatus": 0
+  },
+  "format": null,
+  "mediaPlaybackMode": "audio"
+}

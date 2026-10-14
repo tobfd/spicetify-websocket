@@ -434,3 +434,16 @@ async def test_generic_spicetify_error_handling():
     with pytest.raises(SpicetifyError) as exc_info:
         future.result()
     assert not isinstance(exc_info.value, NotConnectedError)
+
+
+@pytest.mark.asyncio
+async def test_get_current_track_returns_none_without_track(monkeypatch):
+    """get_current_track() returns None instead of an empty TrackInfo when nothing plays."""
+    server = SpotifyServer()
+
+    async def mock_send_command(_request, _timeout=5.0):
+        return {"success": True, "payload": {"track": None}}
+
+    monkeypatch.setattr(server, "_send_command", mock_send_command)
+
+    assert await server.get_current_track() is None
