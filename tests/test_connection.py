@@ -9,7 +9,7 @@ import pytest
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
-from spicetify import NotConnectedError, SpotifyServer
+from spicetify import NotConnectedError, RequestFailedError, SpotifyServer, UnauthorizedError
 from spicetify.server import SPOTIFY_DESKTOP_ORIGIN
 
 API_KEY = "test-secret-key"
@@ -251,4 +251,87 @@ async def test_stop_fails_pending_requests_and_disconnects(open_server: SpotifyS
     with pytest.raises(NotConnectedError):
         await request
     assert not open_server.is_connected
+    await ws.close()
+
+
+async def test_client_versions_from_initial_state(open_server: SpotifyServer):
+    """The server remembers which extension and protocol version the client reported."""
+    seen = []
+    open_server.on_connect(lambda: seen.append(open_server.client_protocol_version))
+    ws = await connect(_url(open_server))
+    payload = {"isPlaying": False, "protocolVersion": 1, "extensionVersion": "0.4.0"}
+    await ws.send(json.dumps({"eventName": "InitialState", "payload": payload}))
+    await open_server.wait_for_connection(timeout=2)
+    await _wait_until(lambda: seen)
+
+    assert seen == [1], "available in on_connect callbacks"
+    assert open_server.client_version == "0.4.0"
+
+    await ws.close()
+    await _wait_until(lambda: not open_server.is_connected)
+    assert open_server.client_protocol_version is None
+    assert open_server.client_version is None
+
+
+async def test_old_extension_reports_protocol_version_zero(open_server: SpotifyServer):
+    ws = await _connect_client(open_server)
+    await open_server.wait_for_connection(timeout=2)
+
+    assert open_server.client_protocol_version == 0
+    assert open_server.client_version is None
+    await ws.close()
+
+
+async def test_newer_protocol_is_logged(
+    open_server: SpotifyServer, caplog: pytest.LogCaptureFixture
+):
+    ws = await connect(_url(open_server))
+    await ws.send(json.dumps({"eventName": "InitialState", "payload": {"protocolVersion": 99}}))
+    await open_server.wait_for_connection(timeout=2)
+
+    assert open_server.client_protocol_version == 99
+    assert "protocol version 99" in caplog.text
+    await ws.close()
+
+
+@pytest.mark.parametrize(
+    ("response", "error_type", "code"),
+    [
+        (
+            {"error": "Parameter 'level' must be between 0.0 and 1.0.", "code": "invalid_params"},
+            RequestFailedError,
+            "invalid_params",
+        ),
+        ({"error": "Nope", "code": "unauthorized"}, UnauthorizedError, None),
+        ({"error": "Unauthorized: Invalid or missing API key."}, UnauthorizedError, None),
+        ({"error": "Track unavailable"}, RequestFailedError, None),
+    ],
+)
+async def test_failed_responses_map_error_codes(
+    open_server: SpotifyServer, response: dict, error_type: type, code: str | None
+):
+    """Error codes decide the exception type; old extensions fall back to the message text."""
+    ws = await _connect_client(open_server)
+    await open_server.wait_for_connection(timeout=2)
+
+    async def answer() -> None:
+        request = json.loads(await ws.recv())
+        await ws.send(
+            json.dumps(
+                {
+                    "eventName": "Response",
+                    "requestId": request["requestId"],
+                    "success": False,
+                    "payload": {},
+                    **response,
+                }
+            )
+        )
+
+    responder = asyncio.create_task(answer())
+    with pytest.raises(error_type) as exc_info:
+        await open_server.play()
+    await responder
+    if error_type is RequestFailedError:
+        assert exc_info.value.code == code
     await ws.close()
