@@ -102,6 +102,7 @@ All state-related event handlers receive a comprehensive [`PlayerState`](https:/
 | `ShuffleChanged` | `@server.on_shuffle_changed` | `PlayerState` | Fired when shuffle mode is toggled. |
 | `SeekChanged` | `@server.on_seek_changed` | `PlayerState` | Fired when timeline position is manually changed. |
 | `HeartChanged` | `@server.on_heart_changed` | `PlayerState` | Fired when the active track's heart/like status changes. |
+| `BufferingChanged` | `@server.on("BufferingChanged")` | `PlayerState` | Fired when Spotify finishes buffering (extension 0.4.0+). |
 | `Ping` | `@server.on_ping` | `datetime` (UTC) | Fired on periodic heartbeat pings from Spicetify. |
 
 ### Connection Lifecycle Hooks
@@ -111,7 +112,18 @@ All state-related event handlers receive a comprehensive [`PlayerState`](https:/
 | `@server.on_connect` | `() -> None` | Fired when a Spicetify client becomes the active connection. |
 | `@server.on_disconnect` | `() -> None` | Fired when the active connection is lost (not when it is replaced by a newer client). |
 
-`server.is_connected` tells you at any time whether an authenticated client is connected.
+`server.is_connected` tells you at any time whether an authenticated client is connected. `server.client_version` and `server.client_protocol_version` report the connected extension's version and [protocol version](https://github.com/tobfd/spicetify-connect-api/blob/master/PROTOCOL.md) (`0` for extensions before 0.4.0).
+
+### Errors
+
+| Exception | Raised when |
+| :--- | :--- |
+| `NotConnectedError` | No client is connected, or the connection is lost before the response arrives. |
+| `RequestTimeoutError` | The extension does not answer in time. |
+| `UnauthorizedError` | The extension rejected the API key. |
+| `RequestFailedError` | The extension reports a failure. `err.code` holds the machine-readable reason (`invalid_params`, `unknown_request`, `unavailable`, `command_failed`; `None` for extensions before 0.4.0). |
+
+All of them derive from `SpicetifyError`. The message format is specified in the extension's [PROTOCOL.md](https://github.com/tobfd/spicetify-connect-api/blob/master/PROTOCOL.md).
 
 ---
 

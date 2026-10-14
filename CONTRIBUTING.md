@@ -25,6 +25,17 @@ Before submitting your changes, run the test suite locally with `pytest`:
 pytest
 ```
 
+### End-to-End Tests with the Extension
+
+`tests/e2e` runs the real [spicetify-connect-api](https://github.com/tobfd/spicetify-connect-api) extension in Node.js (with a fake Spotify API) against the real server and validates every message against the extension's `protocol/messages.schema.json`. They need Node.js 22+ and a checkout of the extension:
+
+```bash
+git clone https://github.com/tobfd/spicetify-connect-api ../spicetify-connect-api
+SPICETIFY_EXTENSION_DIR=../spicetify-connect-api pytest tests/e2e
+```
+
+Without `SPICETIFY_EXTENSION_DIR` they are skipped. Tests for newer protocol features are skipped automatically when the extension is older. CI runs them against the extension's `master` branch on every pull request and weekly; to test against another branch, run the workflow manually with `extension_ref` or set the repository variable `SPICETIFY_EXTENSION_REF`.
+
 ---
 
 ### Building Documentation

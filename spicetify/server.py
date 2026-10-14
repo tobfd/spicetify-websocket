@@ -15,8 +15,8 @@ from websockets.exceptions import ConnectionClosed
 
 from .exceptions import (
     NotConnectedError,
+    RequestFailedError,
     RequestTimeoutError,
-    SpicetifyError,
     UnauthorizedError,
 )
 from .models import (
@@ -50,6 +50,9 @@ logger = logging.getLogger(__name__)
 
 #: Origin sent by the Spotify desktop client (Spicetify runs inside this page).
 SPOTIFY_DESKTOP_ORIGIN = "https://xpui.app.spotify.com"
+
+#: Newest version of the extension's message format (PROTOCOL.md) this library knows.
+SUPPORTED_PROTOCOL_VERSION = 1
 
 # WebSocket close code used when a client fails to authenticate in time (RFC 6455: 1008).
 _CLOSE_POLICY_VIOLATION = 1008
@@ -115,11 +118,27 @@ class SpotifyServer:
         self._connect_callbacks: list[Callable[[], Any]] = []
         self._disconnect_callbacks: list[Callable[[], Any]] = []
         self._background_tasks: set[asyncio.Task[Any]] = set()
+        self._client_protocol_version: int | None = None
+        self._client_version: str | None = None
 
     @property
     def is_connected(self) -> bool:
         """Return ``True`` if an authenticated Spicetify client is connected."""
         return self.websocket is not None
+
+    @property
+    def client_protocol_version(self) -> int | None:
+        """Protocol version of the connected extension.
+
+        ``0`` for extensions that predate protocol versioning (v0.3.x and
+        older), ``None`` while no client is connected.
+        """
+        return self._client_protocol_version if self.is_connected else None
+
+    @property
+    def client_version(self) -> str | None:
+        """Version of the connected spicetify-connect-api extension, if it reports one."""
+        return self._client_version if self.is_connected else None
 
     # --- Event Registration ---
 
@@ -485,6 +504,26 @@ class SpotifyServer:
         for callback in self._connect_callbacks:
             self._run_callback(callback, (), "on_connect")
 
+    def _update_client_info(self, payload: Any) -> None:
+        """Remember which extension and protocol version the client reported.
+
+        Args:
+            payload: Payload of an ``InitialState`` event.
+        """
+        payload = payload if isinstance(payload, dict) else {}
+        version = payload.get("protocolVersion")
+        protocol = version if isinstance(version, int) and not isinstance(version, bool) else 0
+        extension = payload.get("extensionVersion")
+        self._client_version = extension if isinstance(extension, str) else None
+        if protocol > SUPPORTED_PROTOCOL_VERSION and protocol != self._client_protocol_version:
+            logger.warning(
+                "The Spicetify extension uses protocol version %s, but this library only "
+                "knows version %s. Update spicetify-websocket to use all features.",
+                protocol,
+                SUPPORTED_PROTOCOL_VERSION,
+            )
+        self._client_protocol_version = protocol
+
     def _deactivate_connection(self, websocket: ServerConnection) -> None:
         """Clear the active connection if (and only if) it is the given one.
 
@@ -494,6 +533,8 @@ class SpotifyServer:
         if self.websocket is not websocket:
             return
         self.websocket = None
+        self._client_protocol_version = None
+        self._client_version = None
         self._connected_event.clear()
         self._fail_pending_requests("The connection to Spicetify was lost.")
         logger.info("Spicetify client disconnected.")
@@ -613,6 +654,9 @@ class SpotifyServer:
                         warned_unauthorized = True
                     continue
 
+                if data.get("eventName") == "InitialState":
+                    self._update_client_info(data.get("payload"))
+
                 if not authenticated:
                     authenticated = True
                     auth_timer.cancel()
@@ -649,10 +693,12 @@ class SpotifyServer:
                 return
             if data.get("success") is False:
                 msg = str(data.get("error") or data.get("message") or "Unknown Spicetify error")
-                if _looks_like_auth_error(msg):
+                code = data.get("code") if isinstance(data.get("code"), str) else None
+                # Extensions before protocol version 1 send no code; fall back to the text.
+                if code == "unauthorized" or (code is None and _looks_like_auth_error(msg)):
                     future.set_exception(UnauthorizedError(f"Request failed: {msg}"))
                 else:
-                    future.set_exception(SpicetifyError(f"Request failed: {msg}"))
+                    future.set_exception(RequestFailedError(f"Request failed: {msg}", code))
             else:
                 future.set_result(data)
             logger.debug("Received response for requestId: %s", request_id)

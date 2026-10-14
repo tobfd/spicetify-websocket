@@ -36,3 +36,18 @@ class UnauthorizedError(SpicetifyError):
 
     def __init__(self, message="Invalid or missing API key token."):
         super().__init__(message)
+
+
+class RequestFailedError(SpicetifyError):
+    """Raised when Spicetify reports that a request failed.
+
+    Args:
+        message: Human-readable error message from the extension.
+        code: Machine-readable error code (see the extension's PROTOCOL.md),
+            for example ``"invalid_params"`` or ``"command_failed"``. ``None``
+            for extensions that predate error codes.
+    """
+
+    def __init__(self, message: str, code: str | None = None):
+        self.code = code
+        super().__init__(message)
