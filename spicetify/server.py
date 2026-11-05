@@ -953,11 +953,11 @@ class SpotifyServer:
         response = await self._send_command(_GetVolumeRequest())
         return response.get("payload", {}).get("level", 0) * 100
 
-    async def get_current_track(self) -> TrackInfo:
+    async def get_current_track(self) -> TrackInfo | None:
         """Get the current track information from Spicetify.
 
         Returns:
-            A ``TrackInfo`` object containing details about the current track.
+            A ``TrackInfo`` object for the current track, or ``None`` if nothing is loaded.
 
         Raises:
             NotConnectedError: If not connected to Spicetify.
@@ -965,7 +965,11 @@ class SpotifyServer:
             UnauthorizedError: If the API key token is invalid or missing.
         """
         response = await self._send_command(_GetCurrentTrackRequest())
-        return TrackInfo.from_payload(response.get("payload", {}))
+        payload = response.get("payload")
+        track = payload.get("track") if isinstance(payload, dict) else None
+        if not isinstance(track, dict) or not track:
+            return None
+        return TrackInfo.from_payload(track)
 
 
 # --- Module Helpers ---
