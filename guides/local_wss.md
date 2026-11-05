@@ -78,6 +78,7 @@ Pass `certfile` and `keyfile` to your `SpotifyServer` instance.
 import asyncio
 from spicetify import SpotifyServer
 
+
 async def main():
     # Example for Home Server (listening on all interfaces):
     async with SpotifyServer(
@@ -90,6 +91,7 @@ async def main():
         print("Server running on wss://192.168.178.200:9090")
         await server.wait_for_connection()
         await asyncio.Event().wait()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

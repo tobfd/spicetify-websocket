@@ -12,6 +12,7 @@ Your Python server runs locally on `127.0.0.1:9090` without SSL files (`certfile
 import asyncio
 from spicetify import SpotifyServer
 
+
 async def main():
     # Runs locally unencrypted; Nginx handles public WSS encryption
     async with SpotifyServer(
@@ -22,6 +23,7 @@ async def main():
         print("Python server listening locally on ws://127.0.0.1:9090")
         await server.wait_for_connection()
         await asyncio.Event().wait()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

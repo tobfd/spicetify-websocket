@@ -11,7 +11,7 @@ description = "An asynchronous Python wrapper and WebSocket server for controlli
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -29,7 +29,8 @@ license = "MIT"
 license-files = ["LICEN[CS]E*"]
 dependencies = [
   "pydantic>=2.0.0,<3.0.0",
-  "websockets>=16.1.1,<17.0",
+  "typing-extensions>=4.6.0",
+  "websockets>=16.1.1,<18.0",
 ]
 dynamic = ["version"]
 
@@ -44,7 +45,6 @@ version = {attr = "spicetify.__version__"}
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-fix = true
 
 [tool.ruff.lint]
 extend-select = [
@@ -56,10 +56,6 @@ extend-select = [
     "C4",     # flake8-comprehensions
     "RUF",    # Ruff-specific rules
 ]
-
-[lint.per-file-ignores]
-"examples/*" = ["T201"]
-"tests/*" = ["SLF001", "S101"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=spicetify --cov-report=term-missing --cov-report=html"
