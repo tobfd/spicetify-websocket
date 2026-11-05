@@ -48,4 +48,6 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
 html_static_path = ["_static"]
+# Files copied verbatim to the build root (e.g. context7.json for Context7 ownership verification)
+html_extra_path = ["_extra"]
 html_logo = "_static/logo.png"
