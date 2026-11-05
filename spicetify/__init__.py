@@ -13,9 +13,10 @@ from .models import (
     TrackImages,
     TrackInfo,
 )
-from .server import SpotifyServer
+from .server import SPOTIFY_DESKTOP_ORIGIN, SpotifyServer
 
 __all__ = [
+    "SPOTIFY_DESKTOP_ORIGIN",
     "AlbumInfo",
     "ArtistInfo",
     "NotConnectedError",
